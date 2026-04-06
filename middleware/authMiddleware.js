@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 /**
  * Authentication Middleware
@@ -13,7 +14,7 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     next();
   } catch (error) {
@@ -32,7 +33,7 @@ const authMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     res.locals.user = decoded;
     next();
@@ -52,7 +53,7 @@ const adminMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     
     if (decoded.role !== 'admin') {
       return res.status(403).send('Access denied. Admin privileges required.');
@@ -76,7 +77,7 @@ const studentMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     
     if (decoded.role !== 'student') {
       return res.status(403).send('Access denied. Student access required.');

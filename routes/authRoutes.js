@@ -14,21 +14,6 @@ router.post('/login', authController.login);
 router.get('/signup', authController.getSignup);
 router.post('/signup', authController.signup);
 
-// Admin Login
-router.get('/admin/login', (req, res) => {
-  res.render('admin-login', {
-    user: res.locals.user || null,
-    message: null
-  });
-});
-
-// Admin Credentials (Demo)
-router.get('/admin/credentials', (req, res) => {
-  res.render('admin-credentials', {
-    user: res.locals.user || null
-  });
-});
-
 // Logout
 router.get('/logout', authController.logout);
 

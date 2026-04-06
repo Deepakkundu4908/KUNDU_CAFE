@@ -1,15 +1,19 @@
-/**
- * Transaction Model
- */
-class Transaction {
-  constructor(id, userId, type, amount, description) {
-    this.id = id;
-    this.userId = userId;
-    this.type = type; // 'top-up' or 'purchase'
-    this.amount = amount;
-    this.description = description;
-    this.date = new Date();
-  }
-}
+const mongoose = require('mongoose');
 
-module.exports = Transaction;
+const transactionSchema = new mongoose.Schema(
+  {
+    id: { type: Number, required: true, unique: true, index: true },
+    userId: { type: Number, required: true, index: true },
+    type: { type: String, required: true },
+    amount: { type: Number, required: true },
+    description: { type: String, default: '' },
+    paymentMethod: { type: String, default: '' },
+    reference: { type: String, default: '' },
+    date: { type: Date, default: Date.now }
+  },
+  {
+    versionKey: false
+  }
+);
+
+module.exports = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);

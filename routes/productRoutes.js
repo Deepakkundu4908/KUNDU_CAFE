@@ -11,10 +11,10 @@ router.get('/menu', productController.getProductsByCategory);
 // Get frequent orders (API endpoint)
 router.get('/frequent', productController.getFrequentOrders);
 
-// Get single product
-router.get('/:id', productController.getProduct);
-
 // Search products
 router.get('/search', productController.searchProducts);
+
+// Get single product
+router.get('/:id', productController.getProduct);
 
 module.exports = router;

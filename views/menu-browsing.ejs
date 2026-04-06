@@ -19,10 +19,10 @@
       <section class="menu-panel">
         <h5 class="mb-1">Category</h5>
         <div class="filter-row" role="group" aria-label="Category filter">
-          <a href="/products/menu?category=Breakfast&dietary=<%= selectedDietary || 'All' %>" class="filter-chip <%= selectedCategory === 'Breakfast' ? 'is-active' : '' %>"><i class="bi bi-sunrise-fill me-1"></i>Breakfast</a>
-          <a href="/products/menu?category=Lunch&dietary=<%= selectedDietary || 'All' %>" class="filter-chip <%= selectedCategory === 'Lunch' ? 'is-active' : '' %>"><i class="bi bi-egg-fried me-1"></i>Lunch</a>
-          <a href="/products/menu?category=Snacks&dietary=<%= selectedDietary || 'All' %>" class="filter-chip <%= selectedCategory === 'Snacks' ? 'is-active' : '' %>"><i class="bi bi-cake2-fill me-1"></i>Snacks</a>
-          <a href="/products/menu?category=Drinks&dietary=<%= selectedDietary || 'All' %>" class="filter-chip <%= selectedCategory === 'Drinks' ? 'is-active' : '' %>"><i class="bi bi-cup-straw me-1"></i>Drinks</a>
+          <a href="/products/menu?category=Breakfast&dietary=<%= selectedDietary || 'All' %>&page=1" class="filter-chip <%= selectedCategory === 'Breakfast' ? 'is-active' : '' %>"><i class="bi bi-sunrise-fill me-1"></i>Breakfast</a>
+          <a href="/products/menu?category=Lunch&dietary=<%= selectedDietary || 'All' %>&page=1" class="filter-chip <%= selectedCategory === 'Lunch' ? 'is-active' : '' %>"><i class="bi bi-egg-fried me-1"></i>Lunch</a>
+          <a href="/products/menu?category=Snacks&dietary=<%= selectedDietary || 'All' %>&page=1" class="filter-chip <%= selectedCategory === 'Snacks' ? 'is-active' : '' %>"><i class="bi bi-cake2-fill me-1"></i>Snacks</a>
+          <a href="/products/menu?category=Drinks&dietary=<%= selectedDietary || 'All' %>&page=1" class="filter-chip <%= selectedCategory === 'Drinks' ? 'is-active' : '' %>"><i class="bi bi-cup-straw me-1"></i>Drinks</a>
         </div>
       </section>
 
@@ -49,6 +49,12 @@
       </section>
 
       <section>
+        <% const startItem = totalItems > 0 ? ((currentPage - 1) * pageSize) + 1 : 0; %>
+        <% const endItem = Math.min(currentPage * pageSize, totalItems); %>
+        <div class="menu-results-meta">
+          <span>Showing <strong><%= startItem %>-<%= endItem %></strong> of <strong><%= totalItems %></strong> items</span>
+          <span>Page <strong><%= currentPage %></strong> of <strong><%= totalPages %></strong></span>
+        </div>
         <div class="row g-4">
           <% if (items && items.length > 0) { %>
             <% items.forEach(item => { %>
@@ -75,9 +81,15 @@
 
                     <p class="menu-price mb-3">₹<%= item.price %></p>
 
-                    <button class="btn btn-success btn-sm mt-auto btn-add-to-cart" data-item-id="<%= item.id %>" data-item-name="<%= item.name %>">
-                      <i class="bi bi-bag-plus-fill me-1"></i>Add to Cart
-                    </button>
+                    <% if (!item.isOutOfStock && item.quantity > 0) { %>
+                      <button class="btn btn-success btn-sm mt-auto btn-add-to-cart" data-item-id="<%= item.id %>" data-item-name="<%= item.name %>">
+                        <i class="bi bi-bag-plus-fill me-1"></i>Add to Cart
+                      </button>
+                    <% } else { %>
+                      <button class="btn btn-secondary btn-sm mt-auto" disabled>
+                        <i class="bi bi-slash-circle me-1"></i>Out of Stock
+                      </button>
+                    <% } %>
                   </div>
                 </div>
               </div>
@@ -92,6 +104,37 @@
           <% } %>
         </div>
       </section>
+
+      <% if (totalPages > 1) { %>
+        <section class="menu-pagination-shell">
+          <nav class="menu-pagination" aria-label="Menu pagination">
+            <a
+              href="/products/menu?category=<%= encodeURIComponent(selectedCategory || 'Breakfast') %>&dietary=<%= encodeURIComponent(selectedDietary || 'All') %>&page=<%= currentPage - 1 %>"
+              class="pagination-link <%= currentPage === 1 ? 'is-disabled' : '' %>"
+              <%= currentPage === 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>
+            >
+              <i class="bi bi-arrow-left"></i> Prev
+            </a>
+
+            <% for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) { %>
+              <a
+                href="/products/menu?category=<%= encodeURIComponent(selectedCategory || 'Breakfast') %>&dietary=<%= encodeURIComponent(selectedDietary || 'All') %>&page=<%= pageNumber %>"
+                class="pagination-link <%= pageNumber === currentPage ? 'is-active' : '' %>"
+              >
+                <%= pageNumber %>
+              </a>
+            <% } %>
+
+            <a
+              href="/products/menu?category=<%= encodeURIComponent(selectedCategory || 'Breakfast') %>&dietary=<%= encodeURIComponent(selectedDietary || 'All') %>&page=<%= currentPage + 1 %>"
+              class="pagination-link <%= currentPage === totalPages ? 'is-disabled' : '' %>"
+              <%= currentPage === totalPages ? 'aria-disabled="true" tabindex="-1"' : '' %>
+            >
+              Next <i class="bi bi-arrow-right"></i>
+            </a>
+          </nav>
+        </section>
+      <% } %>
 
       <section class="menu-actions mb-3">
         <a href="/" class="btn btn-outline-secondary"><i class="bi bi-arrow-left-circle me-1"></i>Back to Home</a>
@@ -130,7 +173,7 @@
 
     function updateDietary(dietaryValue) {
       const category = new URLSearchParams(window.location.search).get('category') || 'Breakfast';
-      window.location.href = `/products/menu?category=${category}&dietary=${dietaryValue}`;
+      window.location.href = `/products/menu?category=${category}&dietary=${dietaryValue}&page=1`;
     }
 
     function addToCartFromMenu(itemId, itemName) {
@@ -147,7 +190,8 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          alert(`${itemName} added to cart!`);
+          sessionStorage.setItem('cartToast', data.message || `${itemName} added to cart!`);
+          window.location.href = data.redirectTo || '/cart';
         } else {
           alert('Error: ' + (data.error || 'Could not add item'));
         }

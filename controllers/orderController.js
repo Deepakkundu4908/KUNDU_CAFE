@@ -1,19 +1,19 @@
 const storage = require('../storage');
-const Order = require('../models/Order');
+const LOW_BALANCE_THRESHOLD = 150;
 
 /**
  * Order Controller
  */
 
 // Get user orders
-exports.getUserOrders = (req, res) => {
+exports.getUserOrders = async (req, res) => {
   try {
     if (!res.locals.user) {
       return res.redirect('/auth/login');
     }
 
     const userId = res.locals.user.id;
-    const orders = storage.getOrders();
+    const orders = await storage.getOrders();
     const userOrders = orders.filter(order => order.userId == userId);
 
     res.render('orders', { orders: userOrders, user: res.locals.user });
@@ -24,7 +24,7 @@ exports.getUserOrders = (req, res) => {
 };
 
 // Create new order with pickup time
-exports.createOrder = (req, res) => {
+exports.createOrder = async (req, res) => {
   try {
     if (!res.locals.user) {
       return res.redirect('/auth/login');
@@ -58,7 +58,7 @@ exports.createOrder = (req, res) => {
     const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     if (payment === 'wallet') {
-      const users = storage.getUsers();
+      const users = await storage.getUsers();
       const user = users.find(u => u.id === res.locals.user.id);
       if (user.walletBalance < totalPrice) {
         return res.status(400).render('checkout', {
@@ -72,47 +72,62 @@ exports.createOrder = (req, res) => {
         });
       }
       user.walletBalance -= totalPrice;
-      storage.saveUsers(users);
+      await storage.saveUsers(users);
 
-      const transactions = storage.getTransactions();
-      const newTransaction = new Transaction(Date.now(), user.id, 'purchase', totalPrice, `Order #${Date.now()}`);
+      const transactions = await storage.getTransactions();
+      const newTransaction = {
+        id: Date.now(),
+        userId: user.id,
+        type: 'purchase',
+        amount: totalPrice,
+        description: `Order #${Date.now()}`,
+        paymentMethod: 'wallet',
+        date: new Date()
+      };
       transactions.push(newTransaction);
-      storage.saveTransactions(transactions);
+      await storage.saveTransactions(transactions);
     }
     
     // Create order with pickup date and time
-    const newOrder = new Order(
-      Date.now(), 
-      res.locals.user.id, 
-      cart, 
-      totalPrice, 
-      'confirmed', 
-      pickupDateTime.toISOString()
-    );
+    const newOrder = {
+      id: Date.now(),
+      userId: res.locals.user.id,
+      items: cart,
+      totalPrice,
+      status: 'confirmed',
+      pickupTime: pickupDateTime.toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     
     // Add order notes and payment method if provided
     newOrder.notes = notes || '';
     newOrder.paymentMethod = payment || 'cash';
 
-    const orders = storage.getOrders();
+    const orders = await storage.getOrders();
     orders.push(newOrder);
-    storage.saveOrders(orders);
+    await storage.saveOrders(orders);
 
     // Real-time notification: Alert admin about new order
     const io = req.app.get('io');
     if (io) {
       io.to('admin-room').emit('newOrder', { order: newOrder });
+      io.to(`user-${newOrder.userId}`).emit('orderUpdate', {
+        orderId: newOrder.id,
+        status: newOrder.status,
+        order: newOrder
+      });
     }
 
     // Update item popularity
-    const items = storage.getItems();
+    const items = await storage.getItems();
     cart.forEach(cartItem => {
       const item = items.find(i => i.id == cartItem.id);
       if (item) {
         item.popularity = (item.popularity || 0) + cartItem.quantity;
       }
     });
-    storage.saveItems(items);
+    await storage.saveItems(items);
 
     req.session.cart = [];
     res.render('order-confirmation', { order: newOrder, user: res.locals.user });
@@ -123,12 +138,12 @@ exports.createOrder = (req, res) => {
 };
 
 // Get checkout page with time options
-exports.getCheckout = (req, res) => {
+exports.getCheckout = async (req, res) => {
   try {
     const cart = req.session.cart || [];
     
     // Get item details for cart items
-    const items = storage.getItems();
+    const items = await storage.getItems();
     const enrichedCart = cart.map(cartItem => {
       const item = items.find(i => i.id == cartItem.id);
       return {
@@ -167,7 +182,8 @@ exports.getCheckout = (req, res) => {
     const minDate = today.toISOString().split('T')[0];
     const maxDate = tomorrow.toISOString().split('T')[0];
 
-    const user = res.locals.user ? storage.getUsers().find(u => u.id === res.locals.user.id) : null;
+    const users = res.locals.user ? await storage.getUsers() : [];
+    const user = res.locals.user ? users.find(u => u.id === res.locals.user.id) : null;
 
     res.render('checkout', {
       cart: enrichedCart,
@@ -176,6 +192,8 @@ exports.getCheckout = (req, res) => {
       minDate,
       maxDate,
       user,
+      lowBalanceThreshold: LOW_BALANCE_THRESHOLD,
+      isLowBalance: user ? Number(user.walletBalance || 0) < LOW_BALANCE_THRESHOLD : false,
       message: null
     });
   } catch (error) {
@@ -185,14 +203,14 @@ exports.getCheckout = (req, res) => {
 };
 
 // Get order details
-exports.getOrderDetails = (req, res) => {
+exports.getOrderDetails = async (req, res) => {
   try {
     if (!res.locals.user) {
       return res.redirect('/auth/login');
     }
 
     const { orderId } = req.params;
-    const orders = storage.getOrders();
+    const orders = await storage.getOrders();
     const order = orders.find(o => o.id == orderId);
 
     if (!order || order.userId != res.locals.user.id) {
@@ -200,7 +218,7 @@ exports.getOrderDetails = (req, res) => {
     }
 
     // Get item details
-    const items = storage.getItems();
+    const items = await storage.getItems();
     const orderItemsWithDetails = order.items.map(cartItem => {
       const item = items.find(i => i.id == cartItem.id);
       return {

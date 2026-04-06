@@ -1,22 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
-const { verifyToken, adminMiddleware } = require('../middleware/authMiddleware');
+const { adminMiddleware } = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
 
-// Admin dashboard
-router.get('/', verifyToken, adminMiddleware, adminController.getDashboard);
+router.use(adminMiddleware);
 
-// Items management
-router.get('/items', verifyToken, adminMiddleware, adminController.getItems);
-router.post('/items/add', verifyToken, adminMiddleware, upload.single('image'), adminController.addItem);
-router.post('/items/:itemId/update', verifyToken, adminMiddleware, upload.single('image'), adminController.updateItem);
-router.post('/items/:itemId/delete', verifyToken, adminMiddleware, adminController.deleteItem);
-
-// Items management continued
-router.post('/items/:itemId/toggle-stock', verifyToken, adminMiddleware, adminController.toggleStock);
-router.get('/items/:itemId/edit', verifyToken, adminMiddleware, adminController.getEditItem);
-
-// Orders management\nrouter.get('/orders', verifyToken, adminMiddleware, adminController.getAllOrders);\nrouter.post('/orders/:orderId/status', verifyToken, adminMiddleware, adminController.updateOrderStatus);\n\n// Broadcast messages\nrouter.post('/broadcast', verifyToken, adminMiddleware, adminController.broadcastMessage);
+router.get('/', adminController.getDashboard);
+router.get('/data', adminController.getDashboardData);
+router.post('/broadcast', adminController.broadcastMessage);
+router.post('/orders/:id/status', adminController.updateOrderStatus);
+router.post('/items/:id/stock-toggle', adminController.toggleStock);
+router.post('/items', upload.single('imageFile'), adminController.createMenuItem);
+router.post('/items/:id', upload.single('imageFile'), adminController.updateMenuItem);
 
 module.exports = router;

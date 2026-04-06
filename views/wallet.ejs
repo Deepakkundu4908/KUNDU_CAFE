@@ -9,69 +9,178 @@
 <body>
   <%- include('../partials/header') %>
 
-  <div class="container page-shell mt-4">
-    <h3 class="page-subtitle"><i class="bi bi-wallet2 me-2"></i>My Wallet</h3>
+  <div class="container page-shell wallet-page-shell">
+    <section class="wallet-hero">
+      <div>
+        <p class="wallet-kicker">Payments & Wallet</p>
+        <h1>Tap, top up, and pay faster at the canteen</h1>
+        <p class="wallet-copy">Top up your Kundu wallet with UPI or card, track every spend, and avoid getting stuck at checkout with a low balance.</p>
+      </div>
+      <div class="wallet-balance-card <%= isLowBalance ? 'is-low-balance' : '' %>">
+        <span>Current balance</span>
+        <strong>₹<%= Number(user.walletBalance || 0).toFixed(2) %></strong>
+        <small><%= isLowBalance ? `Below recommended ₹${lowBalanceThreshold}` : 'Ready for quick checkout' %></small>
+      </div>
+    </section>
 
     <% if (message) { %>
-      <div class="alert alert-success"><%= message %></div>
+      <div class="success-message"><%= message %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="error-message"><%= error %></div>
+    <% } %>
+    <% if (isLowBalance) { %>
+      <div class="wallet-alert-banner">
+        <strong>Low balance alert:</strong> Your wallet is below ₹<%= lowBalanceThreshold %>. Add funds now so checkout stays smooth.
+      </div>
     <% } %>
 
-    <div class="card mb-4">
-      <div class="card-body">
-        <h5 class="card-title">Current Balance</h5>
-        <p class="card-text fs-2">₹<%= user.walletBalance.toFixed(2) %></p>
-      </div>
-    </div>
+    <section class="wallet-stats-grid">
+      <article class="wallet-mini-stat">
+        <span>This month top-ups</span>
+        <strong>₹<%= Number(topUpsThisMonth || 0).toFixed(2) %></strong>
+      </article>
+      <article class="wallet-mini-stat">
+        <span>This month spent</span>
+        <strong>₹<%= Number(spentThisMonth || 0).toFixed(2) %></strong>
+      </article>
+      <article class="wallet-mini-stat">
+        <span>Recommended minimum</span>
+        <strong>₹<%= lowBalanceThreshold %></strong>
+      </article>
+    </section>
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Top Up Wallet</h5>
-        <form method="POST" action="/wallet/topup">
-          <div class="mb-3">
-            <label for="amount" class="form-label">Amount</label>
-            <input type="number" class="form-control" id="amount" name="amount" min="1" required>
+    <section class="wallet-layout">
+      <div class="wallet-panel">
+        <div class="wallet-panel-head">
+          <div>
+            <h2>Top up wallet</h2>
+            <p>Use the canteen UPI flow now, or card-style top-up for the future-ready experience.</p>
           </div>
-          <button type="submit" class="btn btn-primary">Top Up</button>
+        </div>
+
+        <form method="POST" action="/wallet/topup" class="wallet-topup-form">
+          <div class="wallet-method-grid">
+            <label class="wallet-method-card" for="method-upi">
+              <input type="radio" id="method-upi" name="paymentMethod" value="upi" checked>
+              <span class="wallet-method-icon"><i class="bi bi-qr-code-scan"></i></span>
+              <strong>UPI Scanner</strong>
+              <small>Use the canteen QR flow and add the reference if needed.</small>
+            </label>
+
+            <label class="wallet-method-card" for="method-card">
+              <input type="radio" id="method-card" name="paymentMethod" value="card">
+              <span class="wallet-method-icon"><i class="bi bi-credit-card-2-front"></i></span>
+              <strong>Card Top-up</strong>
+              <small>Simulated in-app card top-up for quick wallet funding.</small>
+            </label>
+          </div>
+
+          <div class="wallet-amount-grid">
+            <button type="button" class="wallet-amount-chip" data-amount="100">₹100</button>
+            <button type="button" class="wallet-amount-chip" data-amount="250">₹250</button>
+            <button type="button" class="wallet-amount-chip" data-amount="500">₹500</button>
+            <button type="button" class="wallet-amount-chip" data-amount="1000">₹1000</button>
+          </div>
+
+          <div class="wallet-form-grid">
+            <div class="form-group">
+              <label for="amount">Amount</label>
+              <input type="number" id="amount" name="amount" min="1" required>
+            </div>
+            <div class="form-group">
+              <label for="reference">UPI / Card Reference</label>
+              <input type="text" id="reference" name="reference" placeholder="Optional reference or last 4 digits">
+            </div>
+          </div>
+
+          <div class="wallet-topup-note">
+            <p id="walletMethodHint">UPI mode: scan the canteen QR, complete payment, then record the amount here to mirror the top-up.</p>
+          </div>
+
+          <button type="submit" class="btn btn-primary wallet-topup-button">
+            <i class="bi bi-wallet2 me-1"></i>Add Funds
+          </button>
         </form>
       </div>
-    </div>
 
-    <div class="card mt-4">
-      <div class="card-body">
-        <h5 class="card-title">Transaction History</h5>
+      <div class="wallet-panel">
+        <div class="wallet-panel-head">
+          <div>
+            <h2>Transaction history</h2>
+            <p>Track top-ups and purchases to stay on top of your monthly food budget.</p>
+          </div>
+        </div>
+
         <% if (transactions && transactions.length > 0) { %>
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th class="text-end">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% transactions.forEach(transaction => { %>
-                <tr>
-                  <td><%= new Date(transaction.date).toLocaleDateString('en-IN') %></td>
-                  <td>
-                    <% if (transaction.type === 'top-up') { %>
-                      <span class="badge bg-success">Top-up</span>
-                    <% } else { %>
-                      <span class="badge bg-danger">Purchase</span>
+          <div class="wallet-history-list">
+            <% transactions.forEach(transaction => { %>
+              <article class="wallet-history-item">
+                <div class="wallet-history-icon <%= transaction.type === 'top-up' ? 'topup' : 'purchase' %>">
+                  <i class="bi <%= transaction.type === 'top-up' ? 'bi-arrow-down-circle' : 'bi-cup-hot' %>"></i>
+                </div>
+                <div class="wallet-history-main">
+                  <div class="wallet-history-top">
+                    <div>
+                      <strong><%= transaction.type === 'top-up' ? 'Top-up' : 'Purchase' %></strong>
+                      <p><%= transaction.description %></p>
+                    </div>
+                    <div class="wallet-history-amount <%= transaction.type === 'top-up' ? 'credit' : 'debit' %>">
+                      <%= transaction.type === 'top-up' ? '+' : '-' %>₹<%= Number(transaction.amount || 0).toFixed(2) %>
+                    </div>
+                  </div>
+                  <div class="wallet-history-meta">
+                    <span><%= new Date(transaction.date).toLocaleString('en-IN') %></span>
+                    <% if (transaction.paymentMethod) { %>
+                      <span><%= transaction.paymentMethod.toUpperCase() %></span>
                     <% } %>
-                  </td>
-                  <td><%= transaction.description %></td>
-                  <td class="text-end">₹<%= transaction.amount.toFixed(2) %></td>
-                </tr>
-              <% }); %>
-            </tbody>
-          </table>
+                    <% if (transaction.reference) { %>
+                      <span>Ref: <%= transaction.reference %></span>
+                    <% } %>
+                  </div>
+                </div>
+              </article>
+            <% }) %>
+          </div>
         <% } else { %>
-          <p class="text-muted mb-0">No transactions yet.</p>
+          <div class="empty-state">
+            <h5 class="mb-2">No transactions yet</h5>
+            <p class="text-muted mb-0">Top up your wallet to start building your payment history.</p>
+          </div>
         <% } %>
       </div>
-    </div>
+    </section>
   </div>
+
+  <script>
+    (function () {
+      const amountInput = document.getElementById('amount');
+      const methodHint = document.getElementById('walletMethodHint');
+      const amountButtons = document.querySelectorAll('.wallet-amount-chip');
+      const methodRadios = document.querySelectorAll('input[name="paymentMethod"]');
+
+      amountButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          amountInput.value = button.getAttribute('data-amount');
+        });
+      });
+
+      const updateHint = function () {
+        const selected = document.querySelector('input[name="paymentMethod"]:checked');
+        if (!selected) return;
+
+        methodHint.textContent = selected.value === 'upi'
+          ? 'UPI mode: scan the canteen QR, complete payment, then record the amount here to mirror the top-up.'
+          : 'Card mode: simulate a quick card top-up so the wallet is ready before checkout.';
+      };
+
+      methodRadios.forEach(function (radio) {
+        radio.addEventListener('change', updateHint);
+      });
+
+      updateHint();
+    })();
+  </script>
 
   <%- include('../partials/footer') %>
 </body>

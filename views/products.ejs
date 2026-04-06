@@ -9,47 +9,136 @@
 <body>
   <%- include('../partials/header') %>
 
-  <div class="container page-shell">
-    <h1>Our Products</h1>
-    
-    <div class="search-bar">
-      <form method="GET" action="/products/search">
-        <input type="text" name="query" placeholder="Search products..." required>
-        <button type="submit" class="btn btn-primary">Search</button>
-      </form>
-    </div>
+  <div class="container page-shell products-page-shell">
+    <section class="products-hero">
+      <div class="products-hero-copy">
+        <span class="products-kicker">Cafe Collection</span>
+        <h1>Explore every brew, bite, and comfort craving</h1>
+        <p>Browse handcrafted drinks, fresh bakery picks, and quick meals in a cleaner, more responsive product gallery.</p>
+      </div>
+      <div class="products-hero-stats">
+        <div class="products-stat-card">
+          <strong><%= totalItems %></strong>
+          <span>Total products</span>
+        </div>
+        <div class="products-stat-card">
+          <strong><%= currentPage %>/<%= totalPages %></strong>
+          <span>Current page</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="products-toolbar">
+      <div class="search-bar products-search-bar">
+        <form method="GET" action="/products/search">
+          <input type="text" name="query" placeholder="Search coffee, snacks, lunch..." required>
+          <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+      </div>
+
+      <a href="/products/menu" class="btn btn-outline-secondary products-browse-link">
+        <i class="bi bi-sliders me-1"></i>Browse With Filters
+      </a>
+    </section>
 
     <% if (typeof searchQuery !== 'undefined' && searchQuery) { %>
-      <p>Search results for: <strong><%= searchQuery %></strong></p>
+      <p class="products-search-result">Search results for: <strong><%= searchQuery %></strong></p>
     <% } %>
+
+    <% const startItem = totalItems > 0 ? ((currentPage - 1) * pageSize) + 1 : 0; %>
+    <% const endItem = Math.min(currentPage * pageSize, totalItems); %>
+    <div class="menu-results-meta">
+      <span>Showing <strong><%= startItem %>-<%= endItem %></strong> of <strong><%= totalItems %></strong> products</span>
+      <span>Page <strong><%= currentPage %></strong> of <strong><%= totalPages %></strong></span>
+    </div>
 
     <div class="products-grid">
       <% if (items && items.length > 0) { %>
         <% items.forEach(item => { %>
-          <div class="product-card">
-            <img class="clickable-image" data-item-json='<%= JSON.stringify(item) %>' src="<%= item.image %>" alt="<%= item.name %>" style="cursor: pointer;">
-            <h3><%= item.name %></h3>
-            <p class="category"><%= item.category %></p>
-            <p class="description"><%= item.description.substring(0, 80) %>...</p>
-            <p class="price">₹<%= item.price %></p>
-            <p class="quantity">Stock: <%= item.quantity %></p>
+          <article class="product-card product-card-modern clickable-product-card" data-item-json='<%= JSON.stringify(item) %>' role="button" tabindex="0" aria-label="View details for <%= item.name %>">
+            <div class="product-media">
+              <img class="clickable-image" data-item-json='<%= JSON.stringify(item) %>' src="<%= item.image %>" alt="<%= item.name %>" style="cursor: pointer;">
+              <span class="product-floating-badge"><%= item.category %></span>
+            </div>
+
+            <div class="product-card-body">
+              <div class="product-card-top">
+                <div>
+                  <h3><%= item.name %></h3>
+                  <p class="product-subcategory"><%= item.subcategory || 'House special' %></p>
+                </div>
+                <p class="price">₹<%= item.price %></p>
+              </div>
+
+              <div class="product-chip-row">
+                <span class="product-chip <%= item.dietary === 'Veg' ? 'veg' : 'nonveg' %>">
+                  <%= item.dietary === 'Veg' ? 'Veg' : 'Non-Veg' %>
+                </span>
+                <span class="product-chip neutral">
+                  <i class="bi bi-clock-history"></i><%= item.prepTime %> min
+                </span>
+                <span class="product-chip neutral">
+                  <i class="bi bi-box-seam"></i><%= item.quantity %> left
+                </span>
+              </div>
+
+              <div class="product-card-footer">
+                <span class="product-stock-text <%= item.quantity > 0 && !item.isOutOfStock ? 'in-stock' : 'out-stock' %>">
+                  <%= item.quantity > 0 && !item.isOutOfStock ? 'Ready to order' : 'Currently unavailable' %>
+                </span>
             
-            <% if (item.quantity > 0) { %>
-              <form method="POST" action="/cart/add" class="add-cart-form">
-                <input type="hidden" name="itemId" value="<%= item.id %>">
-                <input type="hidden" name="price" value="<%= item.price %>">
-                <input type="number" name="quantity" value="1" min="1" max="<%= item.quantity %>">
-                <button type="submit" class="btn btn-success">Add to Cart</button>
-              </form>
-            <% } else { %>
-              <button class="btn btn-disabled" disabled>Out of Stock</button>
-            <% } %>
-          </div>
+                <% if (item.quantity > 0 && !item.isOutOfStock) { %>
+                  <form method="POST" action="/cart/add" class="add-cart-form">
+                    <input type="hidden" name="itemId" value="<%= item.id %>">
+                    <input type="hidden" name="price" value="<%= item.price %>">
+                    <input type="number" name="quantity" value="1" min="1" max="<%= item.quantity %>">
+                    <button type="submit" class="btn btn-success">Add to Cart</button>
+                  </form>
+                <% } else { %>
+                  <button class="btn btn-disabled" disabled>Out of Stock</button>
+                <% } %>
+              </div>
+            </div>
+          </article>
         <% }); %>
       <% } else { %>
-        <p>No products available.</p>
+        <div class="empty-state">
+          <h5 class="mb-2">No products available</h5>
+          <p class="text-muted mb-0">Try a different search or come back for the next fresh batch.</p>
+        </div>
       <% } %>
     </div>
+
+    <% if (totalPages > 1) { %>
+      <div class="menu-pagination-shell">
+        <nav class="menu-pagination" aria-label="Products pagination">
+          <a
+            href="<%= basePath %><%= basePath.includes('?') ? '&' : '?' %>page=<%= currentPage - 1 %>"
+            class="pagination-link <%= currentPage === 1 ? 'is-disabled' : '' %>"
+            <%= currentPage === 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            <i class="bi bi-arrow-left"></i> Prev
+          </a>
+
+          <% for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) { %>
+            <a
+              href="<%= basePath %><%= basePath.includes('?') ? '&' : '?' %>page=<%= pageNumber %>"
+              class="pagination-link <%= pageNumber === currentPage ? 'is-active' : '' %>"
+            >
+              <%= pageNumber %>
+            </a>
+          <% } %>
+
+          <a
+            href="<%= basePath %><%= basePath.includes('?') ? '&' : '?' %>page=<%= currentPage + 1 %>"
+            class="pagination-link <%= currentPage === totalPages ? 'is-disabled' : '' %>"
+            <%= currentPage === totalPages ? 'aria-disabled="true" tabindex="-1"' : '' %>
+          >
+            Next <i class="bi bi-arrow-right"></i>
+          </a>
+        </nav>
+      </div>
+    <% } %>
   </div>
 
   <!-- Product Details Modal -->
@@ -107,8 +196,21 @@
   <script>
     // Handle image clicks
     document.addEventListener('click', function(e) {
-      if (e.target.classList.contains('clickable-image')) {
-        const itemJson = e.target.dataset.itemJson;
+      const card = e.target.closest('.clickable-product-card');
+      if (card && !e.target.closest('form, button, input')) {
+        const itemJson = card.dataset.itemJson;
+        if (itemJson) {
+          const item = JSON.parse(itemJson);
+          openProductModal(item);
+        }
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      const card = e.target.closest('.clickable-product-card');
+      if (card && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        const itemJson = card.dataset.itemJson;
         if (itemJson) {
           const item = JSON.parse(itemJson);
           openProductModal(item);

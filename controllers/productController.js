@@ -5,10 +5,26 @@ const storage = require('../storage');
  */
 
 // Get all products
-exports.getAllProducts = (req, res) => {
+exports.getAllProducts = async (req, res) => {
   try {
-    const items = storage.getItems();
-    res.render('products', { items, user: res.locals.user });
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const perPage = 8;
+    const items = await storage.getItems();
+    const totalItems = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedItems = items.slice(startIndex, startIndex + perPage);
+
+    res.render('products', {
+      items: paginatedItems,
+      currentPage,
+      totalPages,
+      totalItems,
+      pageSize: perPage,
+      basePath: '/products',
+      user: res.locals.user
+    });
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).send('Error fetching products');
@@ -16,10 +32,12 @@ exports.getAllProducts = (req, res) => {
 };
 
 // Get products by category and dietary preference
-exports.getProductsByCategory = (req, res) => {
+exports.getProductsByCategory = async (req, res) => {
   try {
     const { category, dietary } = req.query;
-    let items = storage.getItems();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const perPage = 8;
+    let items = await storage.getItems();
 
     // Filter by category
     if (category && category !== 'All') {
@@ -33,17 +51,26 @@ exports.getProductsByCategory = (req, res) => {
 
     const categories = ['Breakfast', 'Lunch', 'Snacks', 'Drinks'];
     const dietaryOptions = ['Veg', 'Non-Veg'];
+    const totalItems = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedItems = items.slice(startIndex, startIndex + perPage);
     
     // Calculate cart count
     const cart = req.session.cart || [];
     const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
     res.render('menu-browsing', {
-      items,
+      items: paginatedItems,
       categories,
       dietaryOptions,
       selectedCategory: category || 'Breakfast',
       selectedDietary: dietary || 'All',
+      currentPage,
+      totalPages,
+      totalItems,
+      pageSize: perPage,
       cartCount,
       user: res.locals.user
     });
@@ -54,10 +81,10 @@ exports.getProductsByCategory = (req, res) => {
 };
 
 // Get single product
-exports.getProduct = (req, res) => {
+exports.getProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const items = storage.getItems();
+    const items = await storage.getItems();
     const item = items.find(i => i.id == id);
 
     if (!item) {
@@ -72,17 +99,34 @@ exports.getProduct = (req, res) => {
 };
 
 // Search products
-exports.searchProducts = (req, res) => {
+exports.searchProducts = async (req, res) => {
   try {
     const { query } = req.query;
-    const items = storage.getItems();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const perPage = 8;
+    const items = await storage.getItems();
     const results = items.filter(i => 
       i.name.toLowerCase().includes(query.toLowerCase()) ||
       i.subcategory.toLowerCase().includes(query.toLowerCase()) ||
       i.description.toLowerCase().includes(query.toLowerCase())
     );
 
-    res.render('products', { items: results, user: res.locals.user, searchQuery: query });
+    const totalItems = results.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * perPage;
+    const paginatedItems = results.slice(startIndex, startIndex + perPage);
+
+    res.render('products', {
+      items: paginatedItems,
+      user: res.locals.user,
+      searchQuery: query,
+      currentPage,
+      totalPages,
+      totalItems,
+      pageSize: perPage,
+      basePath: `/products/search?query=${encodeURIComponent(query || '')}`
+    });
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).send('Search failed');
@@ -90,13 +134,13 @@ exports.searchProducts = (req, res) => {
 };
 
 // Get frequent orders for a user
-exports.getFrequentOrders = (req, res) => {
+exports.getFrequentOrders = async (req, res) => {
   try {
     if (!res.locals.user) {
       return res.json([]);
     }
 
-    const orders = storage.getOrders();
+    const orders = await storage.getOrders();
     const userOrders = orders.filter(order => order.userId == res.locals.user.id);
     
     // Count item frequencies
@@ -113,7 +157,7 @@ exports.getFrequentOrders = (req, res) => {
       .slice(0, 5)
       .map(([id]) => parseInt(id));
 
-    const items = storage.getItems();
+    const items = await storage.getItems();
     const frequentItems = items.filter(item => sortedItems.includes(item.id));
 
     res.json(frequentItems);

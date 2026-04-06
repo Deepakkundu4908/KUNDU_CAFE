@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const storage = require('../storage');
-const User = require('../models/User');
 const { sendPasswordResetEmail, sendWelcomeEmail } = require('../config/email');
 
 /**
@@ -18,13 +17,23 @@ const generateToken = (user) => {
   );
 };
 
-// User Registration with College Email and ID
-exports.signup = (req, res) => {
+const getBaseUrl = (req) => {
+  if (process.env.APP_URL && process.env.APP_URL.trim()) {
+    return process.env.APP_URL.trim().replace(/\/$/, '');
+  }
+
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = forwardedProto || req.protocol || 'http';
+  return `${protocol}://${req.get('host')}`;
+};
+
+// User Registration
+exports.signup = async (req, res) => {
   try {
-    const { username, email, collegeEmail, collegeId, password, passwordConfirm } = req.body;
+    const { username, email, password, passwordConfirm } = req.body;
 
     // Validation
-    if (!username || !email || !collegeEmail || !collegeId || !password || !passwordConfirm) {
+    if (!username || !email || !password || !passwordConfirm) {
       return res.status(400).render('signup', {
         message: 'Please provide all required fields',
         user: null
@@ -39,38 +48,19 @@ exports.signup = (req, res) => {
       });
     }
 
-    // Check if email is a valid college email from iitd.ac.in
-    const collegeEmailRegex = /^[a-zA-Z0-9._%+-]+@iitd\.ac\.in$/;
-    if (!collegeEmailRegex.test(collegeEmail)) {
+    if (password.length < 6) {
       return res.status(400).render('signup', {
-        message: 'Please provide a valid college email address from the iitd.ac.in domain.',
+        message: 'Password must be at least 6 characters long',
         user: null
       });
     }
 
-    // Validate college ID format
-    const collegeIdRegex = /^[A-Z]{3}\d{4}\d{3}$/;
-    if (!collegeIdRegex.test(collegeId)) {
-      return res.status(400).render('signup', {
-        message: 'Please provide a valid College ID in the format (e.g., CSE2023001).',
-        user: null
-      });
-    }
-
-    const users = storage.getUsers();
+    const users = await storage.getUsers();
 
     // Check if user already exists
-    if (users.find(u => u.email === email || u.collegeEmail === collegeEmail)) {
+    if (users.find(u => u.email === email)) {
       return res.status(400).render('signup', {
         message: 'Email is already registered',
-        user: null
-      });
-    }
-
-    // Check if college ID already exists
-    if (users.find(u => u.collegeId === collegeId)) {
-      return res.status(400).render('signup', {
-        message: 'College ID is already registered',
         user: null
       });
     }
@@ -78,21 +68,22 @@ exports.signup = (req, res) => {
     // Hash password
     const hashedPassword = bcrypt.hashSync(password, 10);
     
-    const newUser = new User(
-      Date.now(),
+    const newUser = {
+      id: Date.now(),
       username,
       email,
-      collegeEmail,
-      collegeId,
-      hashedPassword,
-      'student'
-    );
+      collegeEmail: null,
+      collegeId: null,
+      password: hashedPassword,
+      role: 'student'
+    };
 
-    users.push(newUser);
-    storage.saveUsers(users);
+    await storage.createUser(newUser);
 
     // Send welcome email
-    sendWelcomeEmail(collegeEmail, username);
+    sendWelcomeEmail(email, username, `${getBaseUrl(req)}/auth/login`).catch((error) => {
+      console.error('Welcome email error:', error);
+    });
 
     // Generate token
     const token = generateToken(newUser);
@@ -114,7 +105,7 @@ exports.signup = (req, res) => {
 };
 
 // User Login with JWT
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -125,8 +116,8 @@ exports.login = (req, res) => {
       });
     }
 
-    const users = storage.getUsers();
-    const user = users.find(u => u.email === email || u.collegeEmail === email);
+    const users = await storage.getUsers();
+    const user = users.find(u => u.email === email);
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).render('login', {
@@ -145,12 +136,7 @@ exports.login = (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Redirect based on role
-    if (user.role === 'admin') {
-      return res.redirect('/admin');
-    } else {
-      return res.redirect('/');
-    }
+    return res.redirect('/');
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).render('login', {
@@ -177,7 +163,7 @@ exports.getSignup = (req, res) => {
 };
 
 // Forgot Password - Send Reset Email
-exports.forgotPassword = (req, res) => {
+exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -188,8 +174,8 @@ exports.forgotPassword = (req, res) => {
       });
     }
 
-    const users = storage.getUsers();
-    const user = users.find(u => u.email === email || u.collegeEmail === email);
+    const users = await storage.getUsers();
+    const user = users.find(u => u.email === email);
 
     if (!user) {
       return res.status(404).render('forgot-password', {
@@ -215,12 +201,13 @@ exports.forgotPassword = (req, res) => {
       return u;
     });
 
-    storage.saveUsers(updatedUsers);
+    await storage.saveUsers(updatedUsers);
 
     // Send reset email
-    const emailSent = sendPasswordResetEmail(
+    const resetUrl = `${getBaseUrl(req)}/auth/reset-password/${resetToken}`;
+    const emailSent = await sendPasswordResetEmail(
       user.email,
-      resetToken,
+      resetUrl,
       user.username
     );
 
@@ -230,6 +217,10 @@ exports.forgotPassword = (req, res) => {
         user: null
       });
     } else {
+      await storage.updateUserById(user.id, {
+        resetPasswordToken: null,
+        resetPasswordExpire: null
+      });
       return res.status(500).render('forgot-password', {
         message: 'Error sending reset email. Please try again later.',
         user: null
@@ -250,7 +241,7 @@ exports.getForgotPassword = (req, res) => {
 };
 
 // Reset Password
-exports.resetPassword = (req, res) => {
+exports.resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { password, passwordConfirm } = req.body;
@@ -273,7 +264,7 @@ exports.resetPassword = (req, res) => {
 
     // Hash reset token to find user
     const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const users = storage.getUsers();
+    const users = await storage.getUsers();
 
     const user = users.find(
       u => u.resetPasswordToken === resetTokenHash && 
@@ -303,7 +294,7 @@ exports.resetPassword = (req, res) => {
       return u;
     });
 
-    storage.saveUsers(updatedUsers);
+    await storage.saveUsers(updatedUsers);
 
     return res.status(200).render('reset-password-success', { user: null });
   } catch (error) {

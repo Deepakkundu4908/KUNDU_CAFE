@@ -5,7 +5,7 @@
  */
 
 const dbConfig = {
-  type: 'json', // 'json', 'mongodb', 'mysql'
+  type: 'mongodb',
   jsonPath: './data',
   
   // MongoDB configuration (when type is 'mongodb')

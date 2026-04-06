@@ -1,8 +1,103 @@
-<footer class="footer">
-  <div class="container footer-content">
-    <p>&copy; <%= new Date().getFullYear() %> Kundu Cafe. Fresh food, right on time.</p>
-    <p>Contact: info@kunducafe.com | Phone: +1 (555) 123-4567</p>
+<footer class="footer footer-gradient mt-5">
+  <div class="container">
+    <div class="row gy-4">
+      <div class="col-lg-3">
+        <div class="footer-card">
+          <div class="d-flex align-items-center mb-3">
+            <span class="icon-circle text-warning"><i class="bi bi-mug-hot fs-4"></i></span>
+            <div>
+              <h5 class="mb-0">Kundu Cafe</h5>
+              <small class="text-white-50">Modern coffee culture.</small>
+            </div>
+          </div>
+          <p class="small text-white-50">Fresh brews, toasted pastries, and a smile from our crew every day.</p>
+          <div class="footer-icon-list">
+            <a href="https://instagram.com" target="_blank" rel="noreferrer"><i class="bi bi-instagram"></i>Follow us</a>
+            <a href="https://twitter.com" target="_blank" rel="noreferrer"><i class="bi bi-twitter"></i>Twitter</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-3">
+        <div class="footer-card">
+          <h6 class="text-uppercase text-white-50 mb-3">Quick Links</h6>
+          <ul class="list-unstyled mb-0">
+            <li><i class="bi bi-arrow-right-short"></i> <a href="/products">Menu</a></li>
+            <li><i class="bi bi-arrow-right-short"></i> <a href="/cart">Cart</a></li>
+            <li><i class="bi bi-arrow-right-short"></i> <a href="/orders">Orders</a></li>
+            <li><i class="bi bi-arrow-right-short"></i> <a href="/checkout">Checkout</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-lg-3">
+        <div class="footer-card">
+          <h6 class="text-uppercase text-white-50 mb-3">Contact</h6>
+          <p class="small mb-1"><i class="bi bi-geo-alt-fill me-2"></i>42 Market Street, Bengaluru</p>
+          <p class="small mb-1"><i class="bi bi-clock-history me-2"></i>Open daily 7am - 10pm</p>
+          <p class="small mb-1"><i class="bi bi-telephone-fill me-2"></i>+91 98765 43210</p>
+          <p class="small mb-0"><i class="bi bi-envelope-fill me-2"></i>hello@kunducafe.com</p>
+        </div>
+      </div>
+
+      <div class="col-lg-3">
+        <div class="footer-card">
+          <h6 class="text-uppercase text-white-50 mb-3">Newsletter</h6>
+          <p class="small text-white-50">Bright updates, seasonal menus, and tasting events straight to your inbox.</p>
+          <form>
+            <div class="mb-3">
+              <input type="email" class="form-control form-control-sm bg-transparent text-white border-0 border-bottom border-white-50 rounded-0" placeholder="you@example.com" required>
+            </div>
+            <button class="btn btn-warning btn-sm w-100 text-dark" type="submit">Subscribe</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 border-top border-white-50 pt-3 small">
+      <div class="text-white-50 mb-2 mb-md-0">&copy; <%= new Date().getFullYear() %> Kundu Cafe</div>
+      <div class="d-flex gap-3">
+        <a href="/auth/login" class="text-white-50">Login</a>
+        <a href="/auth/signup" class="text-white-50">Sign up</a>
+      </div>
+    </div>
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/notifications.js"></script>
+<script>
+  (function () {
+    const badge = document.getElementById('cartCountBadge');
+
+    const updateBadge = (count) => {
+      if (!badge) return;
+      const value = Math.max(0, Number(count) || 0);
+      badge.textContent = value;
+      badge.classList.toggle('d-none', value === 0);
+    };
+
+    window.updateCartBadge = updateBadge;
+
+    const refreshBadge = async () => {
+      if (!badge) return;
+      try {
+        const response = await fetch('/cart/data');
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (!payload) return;
+        updateBadge(payload.items ?? 0);
+      } catch (error) {
+        console.debug('Unable to refresh cart badge:', error);
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', refreshBadge);
+  })();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    <% if (user) { %>
+      initNotifications(<%- JSON.stringify(user.id) %>, <%- JSON.stringify(user.role === 'admin') %>);
+    <% } %>
+  });
+</script>

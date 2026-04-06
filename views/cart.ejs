@@ -9,57 +9,130 @@
 <body>
   <%- include('../partials/header') %>
 
-  <div class="container page-shell">
-    <h1>Shopping Cart</h1>
+  <div class="container page-shell student-cart-page">
+    <% if (message) { %>
+      <div class="success-message"><%= message %></div>
+    <% } %>
+
+    <section class="student-cart-hero">
+      <div>
+        <p class="student-cart-kicker">Cart Management</p>
+        <h1>Review your order before checkout</h1>
+        <p>Adjust quantities, remove anything you do not need, and continue to scheduled pickup when everything looks right.</p>
+      </div>
+      <div class="student-cart-summary-chip">
+        <span>Total items</span>
+        <strong><%= totalItems %></strong>
+      </div>
+    </section>
 
     <% if (cart && cart.length > 0) { %>
-      <div class="cart-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Item ID</th>
-              <th>Quantity</th>
-              <th>Price</th>
-              <th>Subtotal</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% cart.forEach(item => { %>
-              <tr>
-                <td><%= item.id %></td>
-                <td><%= item.quantity %></td>
-                <td>₹<%= item.price %></td>
-                <td>₹<%= (item.price * item.quantity) %></td>
-                <td>
-                  <form method="POST" action="/cart/remove/<%= item.id %>" style="display:inline;">
-                    <button type="submit" class="btn btn-danger">Remove</button>
+      <section class="student-cart-layout">
+        <div class="student-cart-list">
+          <% cart.forEach(item => { %>
+            <article class="student-cart-card">
+              <img src="<%= item.image %>" alt="<%= item.name %>" class="student-cart-image">
+
+              <div class="student-cart-main">
+                <div class="student-cart-top">
+                  <div>
+                    <h3><%= item.name %></h3>
+                    <p><%= item.category %> · <%= item.dietary %> <% if (item.prepTime) { %>· <%= item.prepTime %> min<% } %></p>
+                  </div>
+                  <strong class="student-cart-price">₹<%= item.price %></strong>
+                </div>
+
+                <div class="student-cart-actions-row">
+                  <form method="POST" action="/cart/update" class="student-cart-quantity-form">
+                    <input type="hidden" name="itemId" value="<%= item.id %>">
+                    <label for="quantity-<%= item.id %>">Qty</label>
+                    <input
+                      id="quantity-<%= item.id %>"
+                      type="number"
+                      name="quantity"
+                      value="<%= item.quantity %>"
+                      min="1"
+                      max="<%= item.availableQuantity || item.quantity %>"
+                    >
+                    <button type="submit" class="btn btn-primary btn-sm">Update</button>
                   </form>
-                </td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      </div>
 
-      <div class="cart-summary">
-        <h3>Cart Summary</h3>
-        <p>Total Items: <%= totalItems %></p>
-        <p class="total-price">Total Price: ₹<%= Math.round(totalPrice) %></p>
-      </div>
+                  <form method="POST" action="/cart/remove/<%= item.id %>">
+                    <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                  </form>
+                </div>
 
-      <div class="cart-actions">
-        <form method="POST" action="/orders/create" style="display:inline;">
-          <button type="submit" class="btn btn-success">Proceed to Checkout</button>
-        </form>
-        <form method="POST" action="/cart/clear" style="display:inline;">
-          <button type="submit" class="btn btn-danger">Clear Cart</button>
-        </form>
-      </div>
+                <div class="student-cart-meta">
+                  <span>Available: <strong><%= item.availableQuantity || item.quantity %></strong></span>
+                  <span>Subtotal: <strong>₹<%= item.price * item.quantity %></strong></span>
+                </div>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+
+        <aside class="student-cart-sidebar">
+          <div class="student-cart-total-card">
+            <h3>Order Summary</h3>
+            <div class="student-cart-total-row">
+              <span>Total Items</span>
+              <strong><%= totalItems %></strong>
+            </div>
+            <div class="student-cart-total-row">
+              <span>Estimated Pickup Ready</span>
+              <strong>Choose at checkout</strong>
+            </div>
+            <div class="student-cart-total-row total">
+              <span>Total Price</span>
+              <strong>₹<%= Math.round(totalPrice) %></strong>
+            </div>
+
+            <a href="/orders/checkout" class="btn btn-success w-100">Proceed to Scheduled Pickup</a>
+            <a href="/products/menu" class="btn btn-outline-secondary w-100">Continue Shopping</a>
+
+            <form method="POST" action="/cart/clear">
+              <button type="submit" class="btn btn-danger w-100">Clear Cart</button>
+            </form>
+          </div>
+        </aside>
+      </section>
     <% } else { %>
-      <p>Your cart is empty. <a href="/products">Continue shopping</a></p>
+      <div class="empty-state">
+        <h5 class="mb-2">Your cart is empty</h5>
+        <p class="text-muted mb-3">Browse breakfast, lunch, snacks, or drinks and start building your order.</p>
+        <a href="/products/menu" class="btn btn-primary">Explore Menu</a>
+      </div>
     <% } %>
   </div>
+
+  <script>
+    (function () {
+      const toastMessage = sessionStorage.getItem('cartToast');
+      if (!toastMessage) return;
+
+      sessionStorage.removeItem('cartToast');
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification toast-success show';
+      toast.innerHTML = `
+        <i class="bi bi-bag-check-fill me-2"></i>${toastMessage}
+        <button class="btn-close ms-auto" type="button" aria-label="Close"></button>
+      `;
+
+      const closeButton = toast.querySelector('.btn-close');
+      closeButton.addEventListener('click', function () {
+        toast.remove();
+      });
+
+      document.body.appendChild(toast);
+
+      setTimeout(function () {
+        toast.classList.remove('show');
+        setTimeout(function () {
+          toast.remove();
+        }, 300);
+      }, 3200);
+    })();
+  </script>
 
   <%- include('../partials/footer') %>
 </body>

@@ -1,21 +1,23 @@
-/**
- * User Model
- */
-class User {
-  constructor(id, username, email, collegeEmail, collegeId, password, role = 'student') {
-    this.id = id;
-    this.username = username;
-    this.email = email;
-    this.collegeEmail = collegeEmail;
-    this.collegeId = collegeId;
-    this.password = password;
-    this.role = role; // 'student' or 'admin'
-    this.walletBalance = 0;
-    this.isEmailVerified = false;
-    this.resetPasswordToken = null;
-    this.resetPasswordExpire = null;
-    this.createdAt = new Date();
-  }
-}
+const mongoose = require('mongoose');
 
-module.exports = User;
+const userSchema = new mongoose.Schema(
+  {
+    id: { type: Number, required: true, unique: true, index: true },
+    username: { type: String, required: true },
+    email: { type: String, required: true, unique: true, index: true },
+    collegeEmail: { type: String, default: null },
+    collegeId: { type: String, default: null },
+    password: { type: String, required: true },
+    role: { type: String, default: 'student' },
+    walletBalance: { type: Number, default: 0 },
+    isEmailVerified: { type: Boolean, default: false },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpire: { type: Date, default: null }
+  },
+  {
+    timestamps: { createdAt: true, updatedAt: false },
+    versionKey: false
+  }
+);
+
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

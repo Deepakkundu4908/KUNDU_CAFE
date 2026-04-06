@@ -42,11 +42,20 @@ class Notifications {
     // Order status update for student
     this.socket.on('orderUpdate', (data) => {
       if (!this.isAdmin) { // Student only
-        this.showNotification('Order Update!', `Your order is now ${data.status}`, 'order-update');
+        const isReady = data.status === 'ready';
+        const title = isReady ? 'Ready for Pickup!' : 'Order Update!';
+        const body = isReady
+          ? `Order #${data.orderId} is ready. You can head to the canteen now.`
+          : `Your order is now ${data.status}`;
+
+        this.showNotification(title, body, 'order-update');
         if (data.status === 'ready') {
           this.playSound(true); // Longer sound for ready
         }
-        this.showToast(`Order status: ${data.status}`, 'success');
+        this.showToast(
+          isReady ? `Order #${data.orderId} is ready for pickup` : `Order status: ${data.status}`,
+          'success'
+        );
       }
     });
 
@@ -107,10 +116,35 @@ function initNotifications(userId = null, isAdmin = false) {
     notificationSystem.disconnect();
   }
   notificationSystem = new Notifications(userId, isAdmin);
+  window.notificationSystem = notificationSystem;
+  return notificationSystem;
 }
+
+window.showAppToast = function (message, type = 'info') {
+  if (notificationSystem) {
+    notificationSystem.showToast(message, type);
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast-notification toast-${type} show`;
+  toast.innerHTML = `
+    <i class="bi bi-bell-fill me-2"></i>${message}
+    <button class="btn-close ms-auto" type="button" aria-label="Close"></button>
+  `;
+
+  toast.querySelector('.btn-close').addEventListener('click', function () {
+    toast.remove();
+  });
+
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+};
 
 // Export for module use
 if (typeof module !== 'undefined') {
   module.exports = Notifications;
 }
-

@@ -12,25 +12,35 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const getSenderAddress = () => {
+  if (process.env.EMAIL_FROM && process.env.EMAIL_FROM.trim()) {
+    return process.env.EMAIL_FROM.trim();
+  }
+
+  if (process.env.EMAIL_USER && process.env.EMAIL_USER.trim()) {
+    return process.env.EMAIL_USER.trim();
+  }
+
+  return 'noreply@kunducafe.com';
+};
+
 /**
  * Send password reset email
  */
-const sendPasswordResetEmail = async (email, resetToken, userName) => {
+const sendPasswordResetEmail = async (email, resetUrl, userName) => {
   try {
-    const resetURL = `${process.env.APP_URL || 'http://localhost:3000'}/auth/reset-password/${resetToken}`;
-
     const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@kunducafe.com',
+      from: getSenderAddress(),
       to: email,
       subject: 'Password Reset Request - Kundu Cafe',
       html: `
         <h2>Password Reset Request</h2>
         <p>Hi ${userName},</p>
         <p>You requested to reset your password. Click the link below to proceed:</p>
-        <a href="${resetURL}" style="background-color: #6F4E37; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+        <a href="${resetUrl}" style="background-color: #6F4E37; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
           Reset Password
         </a>
-        <p>Or copy this link: ${resetURL}</p>
+        <p>Or copy this link: ${resetUrl}</p>
         <p>This link will expire in 15 minutes.</p>
         <p>If you didn't request this, please ignore this email.</p>
         <p>Best regards,<br>Kundu Cafe Team</p>
@@ -48,10 +58,10 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
 /**
  * Send welcome email
  */
-const sendWelcomeEmail = async (email, userName) => {
+const sendWelcomeEmail = async (email, userName, loginUrl) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@kunducafe.com',
+      from: getSenderAddress(),
       to: email,
       subject: 'Welcome to Kundu Cafe!',
       html: `
@@ -64,7 +74,7 @@ const sendWelcomeEmail = async (email, userName) => {
           <li>Track your orders</li>
           <li>Manage your wallet</li>
         </ul>
-        <p>Login here: <a href="http://localhost:3000/auth/login">Kundu Cafe Login</a></p>
+        <p>Login here: <a href="${loginUrl}">Kundu Cafe Login</a></p>
         <p>Best regards,<br>Kundu Cafe Team</p>
       `
     };

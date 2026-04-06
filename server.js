@@ -12,6 +12,8 @@ const jwt = require('jsonwebtoken');
 // Load environment variables
 dotenv.config();
 
+const storage = require('./storage');
+
 const app = express();
 
 // Middleware
@@ -55,8 +57,8 @@ app.use('/auth', require('./routes/authRoutes'));
 app.use('/products', require('./routes/productRoutes'));
 app.use('/cart', require('./routes/cartRoutes'));
 app.use('/orders', require('./routes/orderRoutes'));
-app.use('/admin', require('./routes/adminRoutes'));
 app.use('/wallet', require('./routes/walletRoutes'));
+app.use('/admin', require('./routes/adminRoutes'));
 
 // Home route
 app.get('/', (req, res) => {
@@ -72,7 +74,9 @@ app.use((err, req, res, next) => {
 // Start server
 const START_PORT = Number(process.env.PORT) || 3000;
 
-function startServer(port) {
+async function startServer(port) {
+  await storage.connectDB();
+
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
@@ -113,4 +117,13 @@ function startServer(port) {
   });
 }
 
-startServer(START_PORT);
+startServer(START_PORT).catch((error) => {
+  console.error('Failed to connect to MongoDB or start server:', error);
+  console.error('');
+  console.error('MongoDB connection help:');
+  console.error(`- Current MONGODB_URI: ${process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kundu_cafe'}`);
+  console.error('- If you want local MongoDB, make sure the MongoDB server is installed and running on port 27017.');
+  console.error('- If you want MongoDB Atlas, replace MONGODB_URI in .env with your Atlas connection string.');
+  console.error('- Then restart the app with: npm start');
+  process.exit(1);
+});

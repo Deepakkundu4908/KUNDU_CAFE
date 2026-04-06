@@ -77,6 +77,13 @@
           </div>
         <% } %>
 
+        <% if (isLowBalance) { %>
+          <div class="wallet-alert-banner checkout-wallet-alert">
+            <strong>Low balance alert:</strong> Your wallet balance is below ₹<%= lowBalanceThreshold %>. Top up now or choose another payment method.
+            <a href="/wallet">Open wallet</a>
+          </div>
+        <% } %>
+
         <form method="POST" action="/orders/create" id="checkoutForm" class="checkout-form" onsubmit="validateCheckout(event)">
           <div class="mb-4">
             <label for="pickupDate" class="form-label"><strong><i class="bi bi-calendar-event me-1"></i>Pickup Date</strong></label>

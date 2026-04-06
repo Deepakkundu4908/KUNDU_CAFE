@@ -1,271 +1,301 @@
 const storage = require('../storage');
 const Item = require('../models/Item');
 
-/**
- * Admin Controller
- */
+const ACTIVE_QUEUE_STATUSES = ['pending', 'confirmed', 'received', 'preparing'];
+const ORDER_STATUSES = ['pending', 'received', 'preparing', 'ready', 'delivered', 'cancelled'];
+const WEEKDAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
 
-// Get admin dashboard
-exports.getDashboard = (req, res) => {
+const getOrderDate = (order) => {
+  const rawValue = order.createdAt || order.pickupTime || order.updatedAt || order.date;
+  const parsed = rawValue ? new Date(rawValue) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+};
+
+const getActiveSalesOrders = (orders) => orders.filter((order) => order.status !== 'cancelled');
+
+const buildAnalytics = (orders, items) => {
+  const itemNameById = new Map(items.map((item) => [Number(item.id), item.name]));
+  const weekdaySales = new Array(7).fill(0);
+  const hourlyOrders = new Array(24).fill(0);
+  const itemPopularityMap = new Map();
+
+  getActiveSalesOrders(orders).forEach((order) => {
+    const orderDate = getOrderDate(order);
+    if (orderDate) {
+      const jsDay = orderDate.getDay();
+      const weekdayIndex = jsDay === 0 ? 6 : jsDay - 1;
+      weekdaySales[weekdayIndex] += Number(order.totalPrice || 0);
+      hourlyOrders[orderDate.getHours()] += 1;
+    }
+
+    (order.items || []).forEach((entry) => {
+      const itemId = Number(entry.id);
+      const itemName = itemNameById.get(itemId) || entry.name || `Item #${itemId}`;
+      const quantity = Math.max(1, Number(entry.quantity) || 1);
+      itemPopularityMap.set(itemName, (itemPopularityMap.get(itemName) || 0) + quantity);
+    });
+  });
+
+  const topItems = [...itemPopularityMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  const peakHourCount = Math.max(...hourlyOrders, 0);
+  const peakHourIndex = hourlyOrders.findIndex((count) => count === peakHourCount);
+  const busiestDayAmount = Math.max(...weekdaySales, 0);
+  const busiestDayIndex = weekdaySales.findIndex((amount) => amount === busiestDayAmount);
+
+  return {
+    salesByWeekday: {
+      labels: WEEKDAY_LABELS,
+      values: weekdaySales.map((value) => Math.round(value))
+    },
+    itemPopularity: {
+      labels: topItems.map(([label]) => label),
+      values: topItems.map(([, value]) => value)
+    },
+    ordersByHour: {
+      labels: HOUR_LABELS,
+      values: hourlyOrders
+    },
+    highlights: {
+      busiestDay: busiestDayIndex >= 0 ? WEEKDAY_LABELS[busiestDayIndex] : 'No data yet',
+      busiestDaySales: Math.round(busiestDayAmount),
+      peakHour: peakHourIndex >= 0 ? HOUR_LABELS[peakHourIndex] : 'No data yet',
+      peakHourOrders: peakHourCount,
+      topItem: topItems[0] ? topItems[0][0] : 'No orders yet',
+      topItemCount: topItems[0] ? topItems[0][1] : 0
+    }
+  };
+};
+
+const sortByPickupTime = (orders) =>
+  [...orders].sort((a, b) => {
+    const first = a.pickupTime ? new Date(a.pickupTime).getTime() : Number.MAX_SAFE_INTEGER;
+    const second = b.pickupTime ? new Date(b.pickupTime).getTime() : Number.MAX_SAFE_INTEGER;
+    return first - second;
+  });
+
+const resolveImagePath = (req, fallbackImage = '/images/kundu-cafe-logo.svg') => {
+  if (req.file) {
+    return `/images/${req.file.filename}`;
+  }
+
+  if (req.body.image && req.body.image.trim()) {
+    return req.body.image.trim();
+  }
+
+  return fallbackImage;
+};
+
+const buildDashboardPayload = async () => {
+  const [orders, items] = await Promise.all([storage.getOrders(), storage.getItems()]);
+
+  const activeOrders = sortByPickupTime(
+    orders.filter((order) => ACTIVE_QUEUE_STATUSES.includes(order.status))
+  );
+  const recentOrders = [...orders]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 12);
+  const menuItems = [...items].sort((a, b) => {
+    if (a.category === b.category) return a.name.localeCompare(b.name);
+    return a.category.localeCompare(b.category);
+  });
+
+  return {
+    activeOrders,
+    recentOrders,
+    menuItems,
+    analytics: buildAnalytics(orders, items),
+    stats: {
+      activeOrders: activeOrders.length,
+      readyOrders: orders.filter((order) => order.status === 'ready').length,
+      outOfStockItems: items.filter((item) => item.isOutOfStock || item.quantity <= 0).length,
+      totalItems: items.length
+    }
+  };
+};
+
+exports.getDashboard = async (req, res) => {
   try {
-    const items = storage.getItems();
-    const orders = storage.getOrders();
-    const users = storage.getUsers();
-
-    res.render('admin-panel', {
-      totalItems: items.length,
-      totalOrders: orders.length,
-      totalUsers: users.length,
-      recentOrders: orders.slice(-5),
-      user: res.locals.user
+    const payload = await buildDashboardPayload();
+    res.render('admin-dashboard', {
+      ...payload,
+      user: res.locals.user,
+      message: req.query.message || null,
+      error: req.query.error || null,
+      orderStatuses: ORDER_STATUSES
     });
   } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).send('Error loading dashboard');
+    console.error('Error loading admin dashboard:', error);
+    res.status(500).send('Error loading admin dashboard');
   }
 };
 
-// Get all items for admin
-exports.getItems = (req, res) => {
+exports.getDashboardData = async (req, res) => {
   try {
-    const items = storage.getItems();
-    res.render('admin-items', { items, user: res.locals.user });
+    const payload = await buildDashboardPayload();
+    res.json(payload);
   } catch (error) {
-    console.error('Error fetching items:', error);
-    res.status(500).send('Error fetching items');
+    console.error('Error loading admin dashboard data:', error);
+    res.status(500).json({ error: 'Error loading dashboard data' });
   }
 };
 
-// Add new item
-exports.addItem = (req, res) => {
+exports.updateOrderStatus = async (req, res) => {
   try {
-    const io = req.app.get('io');
-    const { name, category, price, description, quantity, subcategory, dietary, prepTime } = req.body;
-    const items = storage.getItems();
-
-    // Determine image path - from file upload or from input
-    let imagePath = '/images/default-product.jpg';
-    if (req.file) {
-      imagePath = `/images/${req.file.filename}`;
-    } else if (req.body.image) {
-      imagePath = req.body.image;
-    }
-
-    const newItem = new Item(
-      Date.now(),
-      name,
-      category,
-      parseFloat(price),
-      description,
-      imagePath,
-      parseInt(quantity)
-    );
-
-    // Add additional optional fields
-    if (subcategory) newItem.subcategory = subcategory;
-    if (dietary) newItem.dietary = dietary;
-    if (prepTime) newItem.prepTime = parseInt(prepTime);
-
-    items.push(newItem);
-    storage.saveItems(items);
-
-    if (io) {
-      io.emit('itemStockUpdate', { itemId: newItem.id, isOutOfStock: newItem.isOutOfStock });
-    }
-
-    res.redirect('/admin/items?success=Item added successfully');
-  } catch (error) {
-    console.error('Error adding item:', error);
-    res.status(500).send('Error adding item: ' + error.message);
-  }
-};
-
-// Update item
-exports.updateItem = (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { itemId } = req.params;
-    const { name, category, price, description, quantity, subcategory, dietary, prepTime } = req.body;
-
-    let items = storage.getItems();
-    let updatedItemFound = null;
-    items = items.map(item => {
-      if (item.id == itemId) {
-        // Determine image path - new file upload, keep existing, or use input
-        let imagePath = item.image; // Keep existing image by default
-        
-        if (req.file) {
-          imagePath = `/images/${req.file.filename}`;
-        } else if (req.body.image && req.body.image !== item.image) {
-          imagePath = req.body.image;
-        }
-
-        const updatedItem = {
-          ...item,
-          name,
-          category,
-          price: parseFloat(price),
-          description,
-          image: imagePath,
-          quantity: parseInt(quantity),
-          isOutOfStock: false  // Reset on full update
-        };
-
-        // Update optional fields
-        if (subcategory) updatedItem.subcategory = subcategory;
-        if (dietary) updatedItem.dietary = dietary;
-        if (prepTime) updatedItem.prepTime = parseInt(prepTime);
-
-        updatedItemFound = updatedItem;
-        return updatedItem;
-      }
-      return item;
-    });
-
-    storage.saveItems(items);
-    if (io && updatedItemFound) {
-      io.emit('itemStockUpdate', { itemId: updatedItemFound.id, isOutOfStock: updatedItemFound.isOutOfStock });
-    }
-    res.redirect('/admin/items?success=Item updated successfully');
-  } catch (error) {
-    console.error('Error updating item:', error);
-    res.status(500).send('Error updating item: ' + error.message);
-  }
-};
-
-// Delete item
-exports.deleteItem = (req, res) => {
-  try {
-    const { itemId } = req.params;
-    let items = storage.getItems();
-    items = items.filter(item => item.id != itemId);
-    storage.saveItems(items);
-
-    res.redirect('/admin/items');
-  } catch (error) {
-    console.error('Error deleting item:', error);
-    res.status(500).send('Error deleting item');
-  }
-};
-
-// Get all orders (Pending only, sorted by pickupTime)
-exports.getAllOrders = (req, res) => {
-  try {
-    let orders = storage.getOrders();
-    // Filter pending orders and sort by pickupTime
-    orders = orders
-      .filter(o => o.status === 'pending')
-      .sort((a, b) => new Date(a.pickupTime) - new Date(b.pickupTime));
-    res.render('admin-orders', { orders, user: res.locals.user });
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).send('Error fetching orders');
-  }
-};
-
-// Update order status
-exports.updateOrderStatus = (req, res) => {
-  try {
-    const io = req.app.get('io');
-    const { orderId } = req.params;
+    const orderId = Number(req.params.id);
     const { status } = req.body;
 
-    let orders = storage.getOrders();
-    let targetUserId = null;
-    const updatedOrders = orders.map(order => {
-      if (order.id == orderId) {
-        const updatedOrder = { ...order, status, updatedAt: new Date() };
-        targetUserId = order.userId;
-        if (io) {
-          const eventData = { orderId, status };
-          if (status === 'ready' && targetUserId) {
-            io.to(`user-${targetUserId}`).emit('orderUpdate', eventData);
-          } else {
-            io.emit('orderUpdate', eventData);
-          }
-        }
-        return updatedOrder;
-      }
-      return order;
+    if (!ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const order = await storage.updateOrderById(orderId, {
+      status,
+      updatedAt: new Date()
     });
 
-    storage.saveOrders(updatedOrders);
-    res.redirect('/admin/orders');
-  } catch (error) {
-    console.error('Error updating order:', error);
-    res.status(500).send('Error updating order');
-  }
-};
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
-// Toggle item stock status
-exports.toggleStock = (req, res) => {
-  try {
     const io = req.app.get('io');
-    const { itemId } = req.params;
-
-    let items = storage.getItems();
-    let toggledItem = null;
-    items = items.map(item => {
-      if (item.id == itemId) {
-        item.isOutOfStock = !item.isOutOfStock;
-        toggledItem = item;
-        return item;
-      }
-      return item;
-    });
-
-    storage.saveItems(items);
-    if (io && toggledItem) {
-      io.emit('itemStockUpdate', { itemId: toggledItem.id, isOutOfStock: toggledItem.isOutOfStock });
+    if (io) {
+      io.to('admin-room').emit('orderStatusUpdated', { orderId, status, order });
+      io.to(`user-${order.userId}`).emit('orderUpdate', { orderId, status, order });
+      io.emit('orderStatusUpdated', { orderId, status, order });
     }
-    res.redirect('/admin/items');
+
+    res.json({ success: true, order });
   } catch (error) {
-    console.error('Error toggling stock:', error);
-    res.status(500).send('Error toggling stock');
+    console.error('Error updating order status:', error);
+    res.status(500).json({ error: 'Error updating order status' });
   }
 };
 
-// Get item for editing (reuse admin-items with editMode)
-exports.getEditItem = (req, res) => {
-  try {
-    const items = storage.getItems();
-    const item = items.find(i => i.id == req.params.itemId);
-    if (!item) {
-      return res.status(404).send('Item not found');
-    }
-    res.render('admin-items', { items, item, editMode: true, user: res.locals.user });
-  } catch (error) {
-    console.error('Error fetching item for edit:', error);
-    res.status(500).send('Error fetching item');
-  }
-};
-
-exports.broadcastMessage = (req, res) => {
+exports.broadcastMessage = async (req, res) => {
   try {
     const { title, message } = req.body;
-    const io = req.app.get('io');
-    if (io && title && message) {
-      io.emit('broadcast', { title, message });
-      res.json({ success: true, message: 'Broadcast sent!' });
-    } else {
-      res.status(400).json({ success: false, error: 'Missing title or message' });
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Broadcast message is required' });
     }
+
+    const payload = {
+      title: title && title.trim() ? title.trim() : 'Cafe Notice',
+      message: message.trim(),
+      sentAt: new Date().toISOString()
+    };
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('broadcast', payload);
+    }
+
+    res.json({ success: true, payload });
   } catch (error) {
-    console.error('Broadcast error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+    console.error('Error sending broadcast:', error);
+    res.status(500).json({ error: 'Could not send broadcast' });
   }
 };
 
-module.exports = {
-  getDashboard,
-  getItems,
-  addItem,
-  updateItem,
-  deleteItem,
-  getAllOrders,
-  updateOrderStatus,
-  toggleStock,
-  getEditItem,
-  broadcastMessage
+exports.toggleStock = async (req, res) => {
+  try {
+    const itemId = Number(req.params.id);
+    const item = await storage.findItemById(itemId);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const updated = await storage.updateItemById(itemId, {
+      isOutOfStock: !(item.isOutOfStock || item.quantity <= 0)
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('inventoryUpdated', { item: updated });
+      io.emit('inventoryUpdated', { item: updated });
+    }
+
+    res.json({ success: true, item: updated });
+  } catch (error) {
+    console.error('Error toggling stock:', error);
+    res.status(500).json({ error: 'Error toggling stock' });
+  }
 };
 
+exports.createMenuItem = async (req, res) => {
+  try {
+    const { name, category, subcategory, price, dietary, description, quantity, prepTime } = req.body;
+
+    if (!name || !category || !price) {
+      return res.redirect('/admin?error=Please provide name, category, and price');
+    }
+
+    const nextId = await storage.getNextNumericId(Item);
+    const created = await storage.createItem({
+      id: nextId,
+      name: name.trim(),
+      category: category.trim(),
+      subcategory: (subcategory || '').trim(),
+      price: Number(price),
+      dietary: dietary || 'Veg',
+      description: (description || '').trim(),
+      image: resolveImagePath(req),
+      quantity: Math.max(0, Number(quantity) || 0),
+      prepTime: Math.max(1, Number(prepTime) || 5),
+      popularity: 0,
+      isOutOfStock: Number(quantity) <= 0
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('menuUpdated', { item: created, action: 'created' });
+      io.emit('menuUpdated', { item: created, action: 'created' });
+    }
+
+    res.redirect('/admin?message=Menu item created');
+  } catch (error) {
+    console.error('Error creating menu item:', error);
+    res.redirect('/admin?error=Could not create menu item');
+  }
+};
+
+exports.updateMenuItem = async (req, res) => {
+  try {
+    const itemId = Number(req.params.id);
+    const { name, category, subcategory, price, dietary, description, quantity, prepTime } = req.body;
+
+    const existing = await storage.findItemById(itemId);
+    if (!existing) {
+      return res.redirect('/admin?error=Menu item not found');
+    }
+
+    const updated = await storage.updateItemById(itemId, {
+      name: (name || existing.name).trim(),
+      category: (category || existing.category).trim(),
+      subcategory: (subcategory || '').trim(),
+      price: Number(price),
+      dietary: dietary || existing.dietary,
+      description: (description || '').trim(),
+      image: resolveImagePath(req, existing.image),
+      quantity: Math.max(0, Number(quantity) || 0),
+      prepTime: Math.max(1, Number(prepTime) || existing.prepTime || 5),
+      isOutOfStock: Number(quantity) <= 0 ? true : existing.isOutOfStock
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('menuUpdated', { item: updated, action: 'updated' });
+      io.emit('menuUpdated', { item: updated, action: 'updated' });
+    }
+
+    res.redirect('/admin?message=Menu item updated');
+  } catch (error) {
+    console.error('Error updating menu item:', error);
+    res.redirect('/admin?error=Could not update menu item');
+  }
+};

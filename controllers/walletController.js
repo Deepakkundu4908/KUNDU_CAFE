@@ -1,20 +1,49 @@
 const storage = require('../storage');
-const Transaction = require('../models/Transaction');
+
+const LOW_BALANCE_THRESHOLD = 150;
 
 /**
  * Wallet Controller
  */
 
 // Get wallet page
-exports.getWallet = (req, res) => {
+exports.getWallet = async (req, res) => {
   try {
-    const users = storage.getUsers();
+    const users = await storage.getUsers();
     const user = users.find(u => u.id === req.user.id);
     if (!user) {
       return res.status(404).send('User not found');
     }
-    const transactions = storage.getTransactions().filter(t => t.userId === user.id).sort((a, b) => new Date(b.date) - new Date(a.date));
-    res.render('wallet', { user, transactions, message: null });
+    const transactions = (await storage.getTransactions())
+      .filter(t => t.userId === user.id)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const spentThisMonth = transactions
+      .filter((transaction) =>
+        transaction.type === 'purchase' &&
+        new Date(transaction.date).getMonth() === new Date().getMonth() &&
+        new Date(transaction.date).getFullYear() === new Date().getFullYear()
+      )
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+    const topUpsThisMonth = transactions
+      .filter((transaction) =>
+        transaction.type === 'top-up' &&
+        new Date(transaction.date).getMonth() === new Date().getMonth() &&
+        new Date(transaction.date).getFullYear() === new Date().getFullYear()
+      )
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+    res.render('wallet', {
+      user,
+      transactions,
+      message: req.query.message || null,
+      error: req.query.error || null,
+      lowBalanceThreshold: LOW_BALANCE_THRESHOLD,
+      isLowBalance: Number(user.walletBalance || 0) < LOW_BALANCE_THRESHOLD,
+      spentThisMonth,
+      topUpsThisMonth
+    });
   } catch (error) {
     console.error('Error fetching wallet:', error);
     res.status(500).send('Error fetching wallet');
@@ -22,19 +51,20 @@ exports.getWallet = (req, res) => {
 };
 
 // Top up wallet
-exports.topUpWallet = (req, res) => {
+exports.topUpWallet = async (req, res) => {
   try {
-    const { amount } = req.body;
+    const { amount, paymentMethod, reference } = req.body;
     const topUpAmount = parseInt(amount);
 
     if (!topUpAmount || topUpAmount <= 0) {
-      return res.status(400).render('wallet', {
-        user: req.user,
-        message: 'Please enter a valid amount'
-      });
+      return res.redirect('/wallet?error=Please enter a valid amount');
     }
 
-    const users = storage.getUsers();
+    if (!paymentMethod || !['upi', 'card'].includes(paymentMethod)) {
+      return res.redirect('/wallet?error=Please choose UPI or Card for top-up');
+    }
+
+    const users = await storage.getUsers();
     const user = users.find(u => u.id === req.user.id);
 
     if (!user) {
@@ -43,14 +73,23 @@ exports.topUpWallet = (req, res) => {
 
     user.walletBalance += topUpAmount;
     
-    const transactions = storage.getTransactions();
-    const newTransaction = new Transaction(Date.now(), user.id, 'top-up', topUpAmount, 'Wallet top-up');
+    const transactions = await storage.getTransactions();
+    const newTransaction = {
+      id: Date.now(),
+      userId: user.id,
+      type: 'top-up',
+      amount: topUpAmount,
+      description: `Wallet top-up via ${paymentMethod.toUpperCase()}`,
+      paymentMethod,
+      reference: (reference || '').trim(),
+      date: new Date()
+    };
     transactions.push(newTransaction);
     
-    storage.saveUsers(users);
-    storage.saveTransactions(transactions);
+    await storage.saveUsers(users);
+    await storage.saveTransactions(transactions);
 
-    res.redirect('/wallet');
+    res.redirect('/wallet?message=Wallet topped up successfully');
   } catch (error) {
     console.error('Error topping up wallet:', error);
     res.status(500).send('Error topping up wallet');

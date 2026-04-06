@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Kundu Cafe</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+
+  <div class="container page-shell admin-dashboard-page">
+    <div class="admin-hero">
+      <div>
+        <p class="admin-eyebrow">Kitchen Control</p>
+        <h1>Admin Operations & Inventory</h1>
+        <p class="admin-hero-copy">Track the live pickup queue, update order states, flip stock instantly, and manage menu pricing without touching app code.</p>
+      </div>
+      <div class="admin-hero-chip">
+        <span>Manager Mode</span>
+        <strong><%= user.username %></strong>
+      </div>
+    </div>
+
+    <% if (message) { %>
+      <div class="success-message"><%= message %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="error-message"><%= error %></div>
+    <% } %>
+
+    <section class="stats-grid admin-stats-grid" id="adminStats">
+      <div class="stat-card">
+        <h3>Active Queue</h3>
+        <p class="stat-value" data-stat="activeOrders"><%= stats.activeOrders %></p>
+      </div>
+      <div class="stat-card">
+        <h3>Ready Orders</h3>
+        <p class="stat-value" data-stat="readyOrders"><%= stats.readyOrders %></p>
+      </div>
+      <div class="stat-card">
+        <h3>Out of Stock</h3>
+        <p class="stat-value" data-stat="outOfStockItems"><%= stats.outOfStockItems %></p>
+      </div>
+      <div class="stat-card">
+        <h3>Total Menu Items</h3>
+        <p class="stat-value" data-stat="totalItems"><%= stats.totalItems %></p>
+      </div>
+    </section>
+
+    <section class="admin-analytics-shell">
+      <div class="admin-panel-card admin-analytics-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Analytics & Data Visualization</h2>
+            <p>Spot busy days, best-sellers, and peak pickup hours before the queue gets crowded.</p>
+          </div>
+          <span class="admin-live-indicator">Insights</span>
+        </div>
+
+        <div class="admin-analytics-highlights" id="analyticsHighlights">
+          <div class="analytics-highlight-card">
+            <span>Busiest Day</span>
+            <strong data-highlight="busiestDay"><%= analytics.highlights.busiestDay %></strong>
+            <small>₹<span data-highlight="busiestDaySales"><%= analytics.highlights.busiestDaySales %></span> in sales</small>
+          </div>
+          <div class="analytics-highlight-card">
+            <span>Top Item</span>
+            <strong data-highlight="topItem"><%= analytics.highlights.topItem %></strong>
+            <small><span data-highlight="topItemCount"><%= analytics.highlights.topItemCount %></span> servings ordered</small>
+          </div>
+          <div class="analytics-highlight-card">
+            <span>Peak Hour</span>
+            <strong data-highlight="peakHour"><%= analytics.highlights.peakHour %></strong>
+            <small><span data-highlight="peakHourOrders"><%= analytics.highlights.peakHourOrders %></span> orders in that hour</small>
+          </div>
+        </div>
+
+        <div class="admin-analytics-grid">
+          <article class="analytics-panel">
+            <div class="analytics-panel-head">
+              <h3>Sales Overview</h3>
+              <p>Total sales by day of the week.</p>
+            </div>
+            <div class="analytics-canvas-wrap">
+              <canvas id="salesOverviewChart"></canvas>
+            </div>
+          </article>
+
+          <article class="analytics-panel">
+            <div class="analytics-panel-head">
+              <h3>Popularity Graph</h3>
+              <p>Most-ordered items for grocery planning.</p>
+            </div>
+            <div class="analytics-canvas-wrap analytics-canvas-wrap-pie">
+              <canvas id="popularityChart"></canvas>
+            </div>
+          </article>
+
+          <article class="analytics-panel analytics-panel-wide">
+            <div class="analytics-panel-head">
+              <h3>Peak Hour Heatmap</h3>
+              <p>Orders per hour to help staffing decisions.</p>
+            </div>
+            <div class="analytics-canvas-wrap">
+              <canvas id="peakHourChart"></canvas>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-grid">
+      <div class="admin-panel-card admin-queue-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Live Order Queue</h2>
+            <p>Pending kitchen work sorted by pickup time.</p>
+          </div>
+          <span class="admin-live-indicator">Live</span>
+        </div>
+        <div id="activeQueue">
+          <% if (activeOrders.length > 0) { %>
+            <% activeOrders.forEach(order => { %>
+              <article class="queue-card" data-order-id="<%= order.id %>">
+                <div class="queue-card-head">
+                  <div>
+                    <h3>Order #<%= order.id %></h3>
+                    <p>Pickup <%= order.pickupTime ? new Date(order.pickupTime).toLocaleString() : 'Not scheduled' %></p>
+                  </div>
+                  <span class="status <%= order.status %>"><%= order.status %></span>
+                </div>
+                <p class="queue-card-meta"><strong>Total:</strong> ₹<%= Math.round(order.totalPrice) %> · <strong>Items:</strong> <%= order.items.length %></p>
+                <label class="queue-status-control" for="status-<%= order.id %>">Update status</label>
+                <div class="queue-status-row">
+                  <select id="status-<%= order.id %>" class="form-group input-like admin-status-select" data-order-id="<%= order.id %>">
+                    <% orderStatuses.forEach(status => { %>
+                      <option value="<%= status %>" <%= order.status === status ? 'selected' : '' %>><%= status %></option>
+                    <% }) %>
+                  </select>
+                  <button class="btn btn-primary admin-status-button" data-order-id="<%= order.id %>">Save</button>
+                </div>
+              </article>
+            <% }) %>
+          <% } else { %>
+            <div class="empty-state">
+              <h5 class="mb-2">Queue is clear</h5>
+              <p class="text-muted mb-0">New pending orders will appear here automatically.</p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="admin-panel-card admin-recent-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Recent Orders</h2>
+            <p>Quick status snapshot for the latest requests.</p>
+          </div>
+        </div>
+        <div class="admin-recent-list">
+          <% recentOrders.forEach(order => { %>
+            <div class="recent-order-row">
+              <div>
+                <strong>#<%= order.id %></strong>
+                <small><%= new Date(order.createdAt).toLocaleString() %></small>
+              </div>
+              <div>
+                <span class="status <%= order.status %>"><%= order.status %></span>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+
+        <div class="admin-broadcast-box">
+          <div class="admin-panel-head">
+            <div>
+              <h2>Broadcast Message</h2>
+              <p>Send today's special, closing early, or service updates to every active user.</p>
+            </div>
+          </div>
+
+          <form id="broadcastForm" class="admin-broadcast-form">
+            <div class="form-group">
+              <label for="broadcastTitle">Title</label>
+              <input id="broadcastTitle" name="title" type="text" placeholder="Today's Special">
+            </div>
+            <div class="form-group">
+              <label for="broadcastMessage">Message</label>
+              <textarea id="broadcastMessage" name="message" rows="3" placeholder="Pumpkin latte is live till 4 PM today." required></textarea>
+            </div>
+            <button class="btn btn-warning" type="submit">Send Broadcast</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-menu-layout">
+      <div class="admin-panel-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Menu Editor</h2>
+            <p>Add a seasonal dish or adjust an item in place.</p>
+          </div>
+        </div>
+
+        <form class="admin-form admin-creator-form" method="POST" action="/admin/items" enctype="multipart/form-data">
+          <div class="admin-form-grid">
+            <div class="form-group">
+              <label for="new-name">Item Name</label>
+              <input id="new-name" name="name" type="text" required>
+            </div>
+            <div class="form-group">
+              <label for="new-category">Category</label>
+              <select id="new-category" name="category" required>
+                <option value="Breakfast">Breakfast</option>
+                <option value="Lunch">Lunch</option>
+                <option value="Snacks">Snacks</option>
+                <option value="Drinks">Drinks</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="new-subcategory">Subcategory</label>
+              <input id="new-subcategory" name="subcategory" type="text">
+            </div>
+            <div class="form-group">
+              <label for="new-price">Price</label>
+              <input id="new-price" name="price" type="number" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+              <label for="new-quantity">Stock Qty</label>
+              <input id="new-quantity" name="quantity" type="number" min="0" step="1" value="0">
+            </div>
+            <div class="form-group">
+              <label for="new-prepTime">Prep Time</label>
+              <input id="new-prepTime" name="prepTime" type="number" min="1" step="1" value="5">
+            </div>
+            <div class="form-group">
+              <label for="new-dietary">Dietary</label>
+              <select id="new-dietary" name="dietary">
+                <option value="Veg">Veg</option>
+                <option value="Non-Veg">Non-Veg</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="new-image">Image URL</label>
+              <input id="new-image" name="image" type="text" placeholder="/images/kundu-cafe-logo.svg">
+            </div>
+            <div class="form-group">
+              <label for="new-imageFile">Upload Product Image</label>
+              <input id="new-imageFile" name="imageFile" type="file" accept="image/*">
+              <small class="admin-field-help">Uploads are stored in `public/images`.</small>
+            </div>
+            <div class="form-group form-group-full">
+              <label for="new-description">Description</label>
+              <textarea id="new-description" name="description" rows="3"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-primary" type="submit">Add Menu Item</button>
+        </form>
+      </div>
+
+      <div class="admin-panel-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Stock Management</h2>
+            <p>Instantly switch availability and edit pricing.</p>
+          </div>
+        </div>
+
+        <div class="admin-items-list" id="adminItemsList">
+          <% menuItems.forEach(item => { %>
+            <article class="admin-item-card" data-item-id="<%= item.id %>">
+              <div class="admin-item-card-head">
+                <div>
+                  <h3><%= item.name %></h3>
+                  <p><%= item.category %> · <%= item.subcategory || 'General' %></p>
+                </div>
+                <span class="status <%= item.isOutOfStock || item.quantity <= 0 ? 'out-of-stock' : 'in-stock' %> stock-label">
+                  <%= item.isOutOfStock || item.quantity <= 0 ? 'Out of Stock' : 'In Stock' %>
+                </span>
+              </div>
+
+              <form class="admin-item-form" method="POST" action="/admin/items/<%= item.id %>" enctype="multipart/form-data">
+                <div class="admin-item-image-strip">
+                  <img src="<%= item.image || '/images/kundu-cafe-logo.svg' %>" alt="<%= item.name %>" class="admin-item-image-preview">
+                  <div class="admin-item-image-meta">
+                    <strong>Current image</strong>
+                    <span><%= item.image || '/images/kundu-cafe-logo.svg' %></span>
+                  </div>
+                </div>
+                <div class="admin-item-grid">
+                  <div class="form-group">
+                    <label>Name</label>
+                    <input name="name" type="text" value="<%= item.name %>" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Category</label>
+                    <select name="category" required>
+                      <option value="Breakfast" <%= item.category === 'Breakfast' ? 'selected' : '' %>>Breakfast</option>
+                      <option value="Lunch" <%= item.category === 'Lunch' ? 'selected' : '' %>>Lunch</option>
+                      <option value="Snacks" <%= item.category === 'Snacks' ? 'selected' : '' %>>Snacks</option>
+                      <option value="Drinks" <%= item.category === 'Drinks' ? 'selected' : '' %>>Drinks</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Price</label>
+                    <input name="price" type="number" min="1" step="1" value="<%= item.price %>" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Quantity</label>
+                    <input name="quantity" type="number" min="0" step="1" value="<%= item.quantity %>" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Prep Time</label>
+                    <input name="prepTime" type="number" min="1" step="1" value="<%= item.prepTime || 5 %>" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Dietary</label>
+                    <select name="dietary">
+                      <option value="Veg" <%= item.dietary === 'Veg' ? 'selected' : '' %>>Veg</option>
+                      <option value="Non-Veg" <%= item.dietary === 'Non-Veg' ? 'selected' : '' %>>Non-Veg</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Subcategory</label>
+                    <input name="subcategory" type="text" value="<%= item.subcategory || '' %>">
+                  </div>
+                  <div class="form-group">
+                    <label>Image URL</label>
+                    <input name="image" type="text" value="<%= item.image || '' %>">
+                  </div>
+                  <div class="form-group">
+                    <label>Upload New Image</label>
+                    <input name="imageFile" type="file" accept="image/*">
+                    <small class="admin-field-help">Choose a file to replace the current product image.</small>
+                  </div>
+                  <div class="form-group form-group-full">
+                    <label>Description</label>
+                    <textarea name="description" rows="2"><%= item.description || '' %></textarea>
+                  </div>
+                </div>
+
+                <div class="admin-item-actions">
+                  <button class="btn btn-primary" type="submit">Save Changes</button>
+                  <button class="btn btn-secondary admin-stock-toggle" type="button" data-item-id="<%= item.id %>">
+                    <%= item.isOutOfStock || item.quantity <= 0 ? 'Mark In Stock' : 'Mark Out of Stock' %>
+                  </button>
+                </div>
+              </form>
+            </article>
+          <% }) %>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script id="adminInitialPayload" type="application/json"><%- JSON.stringify({ activeOrders, stats, analytics }) %></script>
+  <script>
+    (function () {
+      const activeQueue = document.getElementById('activeQueue');
+      const statsRoot = document.getElementById('adminStats');
+      const highlightsRoot = document.getElementById('analyticsHighlights');
+      const initialPayloadNode = document.getElementById('adminInitialPayload');
+      const initialPayload = initialPayloadNode ? JSON.parse(initialPayloadNode.textContent) : {};
+      const statusOptions = <%- JSON.stringify(orderStatuses) %>;
+      const socket = window.io ? window.io() : null;
+      const broadcastForm = document.getElementById('broadcastForm');
+      const charts = {};
+
+      const palette = {
+        amber: '#f4b942',
+        coral: '#f16e60',
+        teal: '#149b7e',
+        indigo: '#40259c',
+        plum: '#7b4c9f',
+        sand: '#f5d4a3'
+      };
+
+      const formatPickup = (value) => value ? new Date(value).toLocaleString() : 'Not scheduled';
+
+      const renderStats = (stats) => {
+        if (!statsRoot) return;
+        Object.entries(stats).forEach(([key, value]) => {
+          const node = statsRoot.querySelector(`[data-stat="${key}"]`);
+          if (node) node.textContent = value;
+        });
+      };
+
+      const renderHighlights = (highlights) => {
+        if (!highlightsRoot || !highlights) return;
+        Object.entries(highlights).forEach(([key, value]) => {
+          const node = highlightsRoot.querySelector(`[data-highlight="${key}"]`);
+          if (node) node.textContent = value;
+        });
+      };
+
+      const upsertChart = (name, configFactory, nextData) => {
+        if (!configFactory.ctx) return;
+        const current = charts[name];
+        if (!current) {
+          charts[name] = new Chart(configFactory.ctx, configFactory.build(nextData));
+          return;
+        }
+
+        current.data.labels = nextData.labels;
+        current.data.datasets.forEach((dataset, index) => {
+          dataset.data = nextData.datasets[index].data;
+          if (nextData.datasets[index].backgroundColor) {
+            dataset.backgroundColor = nextData.datasets[index].backgroundColor;
+          }
+          if (nextData.datasets[index].borderColor) {
+            dataset.borderColor = nextData.datasets[index].borderColor;
+          }
+        });
+        current.update();
+      };
+
+      const renderAnalytics = (analytics) => {
+        if (!analytics || typeof Chart === 'undefined') return;
+
+        renderHighlights(analytics.highlights);
+
+        upsertChart(
+          'salesOverview',
+          {
+            ctx: document.getElementById('salesOverviewChart'),
+            build: (data) => ({
+              type: 'bar',
+              data,
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      callback: (value) => `₹${value}`
+                    }
+                  }
+                }
+              }
+            })
+          },
+          {
+            labels: analytics.salesByWeekday.labels,
+            datasets: [{
+              label: 'Sales',
+              data: analytics.salesByWeekday.values,
+              backgroundColor: [
+                palette.amber,
+                palette.coral,
+                palette.teal,
+                palette.indigo,
+                palette.plum,
+                '#e58c5d',
+                '#88c2a4'
+              ],
+              borderRadius: 12,
+              maxBarThickness: 42
+            }]
+          }
+        );
+
+        const pieLabels = analytics.itemPopularity.labels.length ? analytics.itemPopularity.labels : ['No orders yet'];
+        const pieValues = analytics.itemPopularity.values.length ? analytics.itemPopularity.values : [1];
+
+        upsertChart(
+          'popularity',
+          {
+            ctx: document.getElementById('popularityChart'),
+            build: (data) => ({
+              type: 'pie',
+              data,
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  }
+                }
+              }
+            })
+          },
+          {
+            labels: pieLabels,
+            datasets: [{
+              label: 'Orders',
+              data: pieValues,
+              backgroundColor: [
+                palette.indigo,
+                palette.teal,
+                palette.amber,
+                palette.coral,
+                palette.plum,
+                palette.sand
+              ]
+            }]
+          }
+        );
+
+        upsertChart(
+          'peakHour',
+          {
+            ctx: document.getElementById('peakHourChart'),
+            build: (data) => ({
+              type: 'line',
+              data,
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 }
+                  }
+                }
+              }
+            })
+          },
+          {
+            labels: analytics.ordersByHour.labels,
+            datasets: [{
+              label: 'Orders',
+              data: analytics.ordersByHour.values,
+              borderColor: palette.coral,
+              backgroundColor: 'rgba(241, 110, 96, 0.16)',
+              tension: 0.35,
+              fill: true,
+              pointBackgroundColor: palette.coral,
+              pointRadius: 3
+            }]
+          }
+        );
+      };
+
+      const renderQueue = (orders) => {
+        if (!activeQueue) return;
+        if (!orders.length) {
+          activeQueue.innerHTML = `
+            <div class="empty-state">
+              <h5 class="mb-2">Queue is clear</h5>
+              <p class="text-muted mb-0">New pending orders will appear here automatically.</p>
+            </div>
+          `;
+          return;
+        }
+
+        activeQueue.innerHTML = orders.map((order) => `
+          <article class="queue-card" data-order-id="${order.id}">
+            <div class="queue-card-head">
+              <div>
+                <h3>Order #${order.id}</h3>
+                <p>Pickup ${formatPickup(order.pickupTime)}</p>
+              </div>
+              <span class="status ${order.status}">${order.status}</span>
+            </div>
+            <p class="queue-card-meta"><strong>Total:</strong> ₹${Math.round(order.totalPrice)} · <strong>Items:</strong> ${order.items.length}</p>
+            <label class="queue-status-control" for="status-${order.id}">Update status</label>
+            <div class="queue-status-row">
+              <select id="status-${order.id}" class="form-group input-like admin-status-select" data-order-id="${order.id}">
+                ${statusOptions.map((status) => `<option value="${status}" ${order.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+              </select>
+              <button class="btn btn-primary admin-status-button" data-order-id="${order.id}">Save</button>
+            </div>
+          </article>
+        `).join('');
+      };
+
+      const refreshDashboard = async () => {
+        try {
+          const response = await fetch('/admin/data');
+          if (!response.ok) return;
+          const payload = await response.json();
+          renderQueue(payload.activeOrders || []);
+          renderStats(payload.stats || {});
+          renderAnalytics(payload.analytics || {});
+        } catch (error) {
+          console.debug('Unable to refresh admin dashboard:', error);
+        }
+      };
+
+      document.addEventListener('click', async function (event) {
+        const statusButton = event.target.closest('.admin-status-button');
+        if (statusButton) {
+          const orderId = statusButton.getAttribute('data-order-id');
+          const select = document.querySelector(`.admin-status-select[data-order-id="${orderId}"]`);
+          if (!select) return;
+
+          const response = await fetch(`/admin/orders/${orderId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: select.value })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            alert(payload.error || 'Could not update order status');
+            return;
+          }
+          refreshDashboard();
+          return;
+        }
+
+        const stockToggle = event.target.closest('.admin-stock-toggle');
+        if (stockToggle) {
+          const itemId = stockToggle.getAttribute('data-item-id');
+          const response = await fetch(`/admin/items/${itemId}/stock-toggle`, { method: 'POST' });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            alert(payload.error || 'Could not update stock');
+            return;
+          }
+          window.location.reload();
+        }
+      });
+
+      if (broadcastForm) {
+        broadcastForm.addEventListener('submit', async function (event) {
+          event.preventDefault();
+          const formData = new FormData(broadcastForm);
+          const payload = {
+            title: formData.get('title'),
+            message: formData.get('message')
+          };
+
+          const response = await fetch('/admin/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            if (window.showAppToast) {
+              window.showAppToast(result.error || 'Could not send broadcast', 'warning');
+            }
+            return;
+          }
+
+          broadcastForm.reset();
+          if (window.showAppToast) {
+            window.showAppToast('Broadcast sent to all active users', 'success');
+          }
+        });
+      }
+
+      if (socket) {
+        socket.emit('joinRoom', { room: 'admin-room' });
+        socket.on('newOrder', refreshDashboard);
+        socket.on('orderStatusUpdated', refreshDashboard);
+        socket.on('inventoryUpdated', refreshDashboard);
+        socket.on('menuUpdated', function () {
+          window.location.reload();
+        });
+      }
+
+      renderAnalytics(initialPayload.analytics || {});
+    })();
+  </script>
+
+  <%- include('../partials/footer') %>
+</body>
+</html>
