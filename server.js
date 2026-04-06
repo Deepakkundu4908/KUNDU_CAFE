@@ -71,6 +71,9 @@ app.use('/profile', require('./routes/profileRoutes'));
 
 // Home route
 app.get('/', (req, res) => {
+  if (res.locals.user && res.locals.user.role === 'admin') {
+    return res.redirect('/admin');
+  }
   res.render('index', { user: res.locals.user });
 });
 

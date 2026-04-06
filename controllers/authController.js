@@ -147,7 +147,7 @@ exports.login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    return res.redirect('/');
+    return res.redirect(user.role === 'admin' ? '/admin' : '/');
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).render('login', {
