@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= user.role === 'admin' ? 'Admin Profile' : 'My Profile' %> - Kundu Cafe</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+
+  <div class="container page-shell profile-page-shell">
+    <section class="profile-hero">
+      <div class="profile-identity">
+        <div class="profile-avatar">
+          <span><%= (user.username || 'U').charAt(0).toUpperCase() %></span>
+        </div>
+        <div>
+          <p class="profile-kicker"><%= user.role === 'admin' ? 'Admin Profile' : 'Student Profile' %></p>
+          <h1><%= user.username %></h1>
+          <p class="profile-copy"><%= user.email %></p>
+        </div>
+      </div>
+
+      <div class="profile-role-chip <%= user.role === 'admin' ? 'is-admin' : '' %>">
+        <i class="bi <%= user.role === 'admin' ? 'bi-shield-check' : 'bi-person-badge' %>"></i>
+        <span><%= user.role === 'admin' ? 'Administrator' : 'Student Member' %></span>
+      </div>
+    </section>
+
+    <section class="profile-stats-grid">
+      <article class="profile-stat-card">
+        <span>Total Orders</span>
+        <strong><%= stats.totalOrders %></strong>
+      </article>
+      <article class="profile-stat-card">
+        <span>Active Orders</span>
+        <strong><%= stats.activeOrders %></strong>
+      </article>
+      <article class="profile-stat-card">
+        <span>Wallet Balance</span>
+        <strong>₹<%= Number(stats.walletBalance || 0).toFixed(2) %></strong>
+      </article>
+      <article class="profile-stat-card">
+        <span>Total Spent</span>
+        <strong>₹<%= stats.totalSpent %></strong>
+      </article>
+    </section>
+
+    <section class="profile-panel-grid">
+      <article class="profile-panel-card">
+        <div class="profile-panel-head">
+          <h2>Account Details</h2>
+          <p>Your current Kundu Cafe account information.</p>
+        </div>
+        <div class="profile-detail-list">
+          <div class="profile-detail-row">
+            <span>Username</span>
+            <strong><%= user.username %></strong>
+          </div>
+          <div class="profile-detail-row">
+            <span>Email</span>
+            <strong><%= user.email %></strong>
+          </div>
+          <div class="profile-detail-row">
+            <span>Role</span>
+            <strong><%= user.role %></strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="profile-panel-card">
+        <div class="profile-panel-head">
+          <h2><%= user.role === 'admin' ? 'Admin Shortcuts' : 'Quick Actions' %></h2>
+          <p><%= user.role === 'admin' ? 'Jump into the kitchen and operations controls.' : 'Everything you need for ordering and payments.' %></p>
+        </div>
+        <div class="profile-action-list">
+          <a href="/orders" class="profile-action-link">
+            <i class="bi bi-receipt-cutoff"></i>
+            <div>
+              <strong>My Orders</strong>
+              <span>Check status and recent order activity.</span>
+            </div>
+          </a>
+          <a href="/wallet" class="profile-action-link">
+            <i class="bi bi-wallet2"></i>
+            <div>
+              <strong>Wallet</strong>
+              <span>Top up your balance and review transactions.</span>
+            </div>
+          </a>
+          <% if (user.role === 'admin') { %>
+            <a href="/admin" class="profile-action-link">
+              <i class="bi bi-speedometer2"></i>
+              <div>
+                <strong>Admin Dashboard</strong>
+                <span>Manage orders, stock, analytics, and broadcasts.</span>
+              </div>
+            </a>
+          <% } else { %>
+            <a href="/products/menu" class="profile-action-link">
+              <i class="bi bi-cup-hot"></i>
+              <div>
+                <strong>Browse Menu</strong>
+                <span>Pick your next meal or coffee quickly.</span>
+              </div>
+            </a>
+          <% } %>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <%- include('../partials/footer') %>
+</body>
+</html>

@@ -59,6 +59,7 @@ app.use('/cart', require('./routes/cartRoutes'));
 app.use('/orders', require('./routes/orderRoutes'));
 app.use('/wallet', require('./routes/walletRoutes'));
 app.use('/admin', require('./routes/adminRoutes'));
+app.use('/profile', require('./routes/profileRoutes'));
 
 // Home route
 app.get('/', (req, res) => {
