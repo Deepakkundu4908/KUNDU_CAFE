@@ -1,5 +1,10 @@
 const storage = require('../storage');
 
+const getCartSummary = (cart = []) => ({
+  totalItems: cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+  totalPrice: cart.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
+});
+
 /**
  * Cart Controller
  */
@@ -24,8 +29,7 @@ exports.getCart = async (req, res) => {
       };
     });
 
-    const totalItems = cartWithDetails.reduce((sum, item) => sum + item.quantity, 0);
-    const totalPrice = cartWithDetails.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const { totalItems, totalPrice } = getCartSummary(cartWithDetails);
 
     res.render('cart', { 
       cart: cartWithDetails, 
@@ -37,6 +41,23 @@ exports.getCart = async (req, res) => {
   } catch (error) {
     console.error('Error fetching cart:', error);
     res.status(500).send('Error fetching cart');
+  }
+};
+
+exports.getCartData = (req, res) => {
+  try {
+    const cart = req.session.cart || [];
+    const { totalItems, totalPrice } = getCartSummary(cart);
+
+    res.json({
+      success: true,
+      items: totalItems,
+      totalItems,
+      totalPrice: Math.round(totalPrice)
+    });
+  } catch (error) {
+    console.error('Error fetching cart data:', error);
+    res.status(500).json({ error: 'Error fetching cart data' });
   }
 };
 
@@ -80,12 +101,20 @@ exports.addToCart = async (req, res) => {
     }
 
     const successMessage = `${item.name} added to cart`;
+    const { totalItems, totalPrice } = getCartSummary(req.session.cart);
 
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
       return res.redirect(`/cart?message=${encodeURIComponent(successMessage)}`);
     }
 
-    res.json({ success: true, message: successMessage, redirectTo: '/cart' });
+    res.json({
+      success: true,
+      message: successMessage,
+      redirectTo: '/cart',
+      cartCount: totalItems,
+      totalItems,
+      totalPrice: Math.round(totalPrice)
+    });
   } catch (error) {
     console.error('Error adding to cart:', error);
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
@@ -131,11 +160,19 @@ exports.updateQuantity = async (req, res) => {
       cartItem.quantity = qty;
     }
 
+    const { totalItems, totalPrice } = getCartSummary(req.session.cart);
+
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
       return res.redirect('/cart');
     }
 
-    res.json({ success: true, message: 'Quantity updated' });
+    res.json({
+      success: true,
+      message: 'Quantity updated',
+      cartCount: totalItems,
+      totalItems,
+      totalPrice: Math.round(totalPrice)
+    });
   } catch (error) {
     console.error('Error updating quantity:', error);
     res.status(500).json({ error: 'Error updating quantity' });

@@ -131,9 +131,13 @@
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert(`${itemName} added to cart!`);
+        if (window.showAppToast) {
+          window.showAppToast(data.message || `${itemName} added to cart!`, 'success');
+        } else {
+          alert(`${itemName} added to cart!`);
+        }
         if (typeof window.updateCartBadge === 'function') {
-          window.updateCartBadge((Number(document.getElementById('cartCountBadge')?.textContent) || 0) + 1);
+          window.updateCartBadge(data.cartCount ?? data.totalItems ?? 0);
         }
       }
     })

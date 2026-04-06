@@ -190,6 +190,9 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
+          if (typeof window.updateCartBadge === 'function') {
+            window.updateCartBadge(data.cartCount ?? data.totalItems ?? 0);
+          }
           sessionStorage.setItem('cartToast', data.message || `${itemName} added to cart!`);
           window.location.href = data.redirectTo || '/cart';
         } else {
