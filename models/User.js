@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: { type: String, default: 'student' },
     walletBalance: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    lastSeenAt: { type: Date, default: null },
     isEmailVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpire: { type: Date, default: null }

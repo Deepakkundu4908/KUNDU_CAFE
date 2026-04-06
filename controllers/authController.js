@@ -75,7 +75,9 @@ exports.signup = async (req, res) => {
       collegeEmail: null,
       collegeId: null,
       password: hashedPassword,
-      role: 'student'
+      role: 'student',
+      isActive: true,
+      lastSeenAt: new Date().toISOString()
     };
 
     await storage.createUser(newUser);
@@ -125,6 +127,15 @@ exports.login = async (req, res) => {
         user: null
       });
     }
+
+    if (user.isActive === false) {
+      return res.status(403).render('login', {
+        message: 'Your account has been deactivated. Please contact the canteen admin.',
+        user: null
+      });
+    }
+
+    await storage.updateUserById(user.id, { lastSeenAt: new Date() });
 
     // Generate JWT Token
     const token = generateToken(user);

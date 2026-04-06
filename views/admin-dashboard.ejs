@@ -110,6 +110,78 @@
       </div>
     </section>
 
+    <section class="admin-user-shell">
+      <div class="admin-panel-card">
+        <div class="admin-panel-head">
+          <div>
+            <h2>User Management</h2>
+            <p>Track live users, review account status, and activate or deactivate access instantly.</p>
+          </div>
+          <span class="admin-live-indicator">Users</span>
+        </div>
+
+        <div class="admin-user-summary-grid" id="userSummaryGrid">
+          <article class="admin-user-summary-card">
+            <span>Total Users</span>
+            <strong data-user-stat="totalUsers"><%= userManagement.summary.totalUsers %></strong>
+          </article>
+          <article class="admin-user-summary-card">
+            <span>Active Users</span>
+            <strong data-user-stat="activeUsers"><%= userManagement.summary.activeUsers %></strong>
+          </article>
+          <article class="admin-user-summary-card">
+            <span>Inactive Users</span>
+            <strong data-user-stat="inactiveUsers"><%= userManagement.summary.inactiveUsers %></strong>
+          </article>
+          <article class="admin-user-summary-card">
+            <span>Live Users</span>
+            <strong data-user-stat="liveUsers"><%= userManagement.summary.liveUsers %></strong>
+          </article>
+        </div>
+
+        <div class="admin-user-list" id="adminUserList">
+          <% userManagement.users.forEach(managedUser => { %>
+            <article class="admin-user-card">
+              <div class="admin-user-card-top">
+                <div>
+                  <h3><%= managedUser.username %></h3>
+                  <p><%= managedUser.email %></p>
+                </div>
+                <div class="admin-user-statuses">
+                  <span class="status <%= managedUser.isActive ? 'in-stock' : 'out-of-stock' %>">
+                    <%= managedUser.isActive ? 'Active' : 'Inactive' %>
+                  </span>
+                  <span class="status <%= managedUser.isLive ? 'ready' : 'pending' %>">
+                    <%= managedUser.isLive ? 'Live' : 'Offline' %>
+                  </span>
+                </div>
+              </div>
+
+              <div class="admin-user-meta">
+                <span><strong>Role:</strong> <%= managedUser.role %></span>
+                <span><strong>Wallet:</strong> ₹<%= Number(managedUser.walletBalance || 0).toFixed(2) %></span>
+                <span><strong>Last seen:</strong> <%= managedUser.lastSeenLabel %></span>
+              </div>
+
+              <div class="admin-user-actions">
+                <% if (managedUser.role !== 'admin') { %>
+                  <button
+                    class="btn <%= managedUser.isActive ? 'btn-danger' : 'btn-success' %> admin-user-toggle"
+                    type="button"
+                    data-user-id="<%= managedUser.id %>"
+                  >
+                    <%= managedUser.isActive ? 'Deactivate User' : 'Activate User' %>
+                  </button>
+                <% } else { %>
+                  <span class="admin-user-locked">Primary admin account</span>
+                <% } %>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      </div>
+    </section>
+
     <section class="admin-grid">
       <div class="admin-panel-card admin-queue-card">
         <div class="admin-panel-head">
@@ -356,12 +428,14 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script id="adminInitialPayload" type="application/json"><%- JSON.stringify({ activeOrders, stats, analytics }) %></script>
+  <script id="adminInitialPayload" type="application/json"><%- JSON.stringify({ activeOrders, stats, analytics, userManagement }) %></script>
   <script>
     (function () {
       const activeQueue = document.getElementById('activeQueue');
       const statsRoot = document.getElementById('adminStats');
       const highlightsRoot = document.getElementById('analyticsHighlights');
+      const userSummaryGrid = document.getElementById('userSummaryGrid');
+      const adminUserList = document.getElementById('adminUserList');
       const initialPayloadNode = document.getElementById('adminInitialPayload');
       const initialPayload = initialPayloadNode ? JSON.parse(initialPayloadNode.textContent) : {};
       const statusOptions = <%- JSON.stringify(orderStatuses) %>;
@@ -394,6 +468,50 @@
           const node = highlightsRoot.querySelector(`[data-highlight="${key}"]`);
           if (node) node.textContent = value;
         });
+      };
+
+      const renderUserSummary = (summary) => {
+        if (!userSummaryGrid || !summary) return;
+        Object.entries(summary).forEach(([key, value]) => {
+          const node = userSummaryGrid.querySelector(`[data-user-stat="${key}"]`);
+          if (node) node.textContent = value;
+        });
+      };
+
+      const renderUserList = (userManagement) => {
+        if (!adminUserList || !userManagement) return;
+        const users = userManagement.users || [];
+
+        adminUserList.innerHTML = users.map((managedUser) => `
+          <article class="admin-user-card">
+            <div class="admin-user-card-top">
+              <div>
+                <h3>${managedUser.username}</h3>
+                <p>${managedUser.email}</p>
+              </div>
+              <div class="admin-user-statuses">
+                <span class="status ${managedUser.isActive ? 'in-stock' : 'out-of-stock'}">
+                  ${managedUser.isActive ? 'Active' : 'Inactive'}
+                </span>
+                <span class="status ${managedUser.isLive ? 'ready' : 'pending'}">
+                  ${managedUser.isLive ? 'Live' : 'Offline'}
+                </span>
+              </div>
+            </div>
+            <div class="admin-user-meta">
+              <span><strong>Role:</strong> ${managedUser.role}</span>
+              <span><strong>Wallet:</strong> ₹${Number(managedUser.walletBalance || 0).toFixed(2)}</span>
+              <span><strong>Last seen:</strong> ${managedUser.lastSeenLabel}</span>
+            </div>
+            <div class="admin-user-actions">
+              ${managedUser.role !== 'admin'
+                ? `<button class="btn ${managedUser.isActive ? 'btn-danger' : 'btn-success'} admin-user-toggle" type="button" data-user-id="${managedUser.id}">
+                    ${managedUser.isActive ? 'Deactivate User' : 'Activate User'}
+                  </button>`
+                : '<span class="admin-user-locked">Primary admin account</span>'}
+            </div>
+          </article>
+        `).join('');
       };
 
       const upsertChart = (name, configFactory, nextData) => {
@@ -579,6 +697,8 @@
           renderQueue(payload.activeOrders || []);
           renderStats(payload.stats || {});
           renderAnalytics(payload.analytics || {});
+          renderUserSummary(payload.userManagement?.summary || {});
+          renderUserList(payload.userManagement || {});
         } catch (error) {
           console.debug('Unable to refresh admin dashboard:', error);
         }
@@ -615,6 +735,28 @@
             return;
           }
           window.location.reload();
+          return;
+        }
+
+        const userToggle = event.target.closest('.admin-user-toggle');
+        if (userToggle) {
+          const userId = userToggle.getAttribute('data-user-id');
+          const response = await fetch(`/admin/users/${userId}/toggle-status`, { method: 'POST' });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            if (window.showAppToast) {
+              window.showAppToast(payload.error || 'Could not update user status', 'warning');
+            }
+            return;
+          }
+
+          if (window.showAppToast) {
+            window.showAppToast(
+              payload.user?.isActive ? 'User account activated' : 'User account deactivated',
+              'success'
+            );
+          }
+          refreshDashboard();
         }
       });
 
@@ -653,12 +795,16 @@
         socket.on('newOrder', refreshDashboard);
         socket.on('orderStatusUpdated', refreshDashboard);
         socket.on('inventoryUpdated', refreshDashboard);
+        socket.on('userStatusUpdated', refreshDashboard);
+        socket.on('userPresenceUpdated', refreshDashboard);
         socket.on('menuUpdated', function () {
           window.location.reload();
         });
       }
 
       renderAnalytics(initialPayload.analytics || {});
+      renderUserSummary(initialPayload.userManagement?.summary || {});
+      renderUserList(initialPayload.userManagement || {});
     })();
   </script>
 

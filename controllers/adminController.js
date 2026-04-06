@@ -89,8 +89,40 @@ const resolveImagePath = (req, fallbackImage = '/images/kundu-cafe-logo.svg') =>
   return fallbackImage;
 };
 
-const buildDashboardPayload = async () => {
-  const [orders, items] = await Promise.all([storage.getOrders(), storage.getItems()]);
+const formatLastSeen = (value) => {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Never' : date.toLocaleString();
+};
+
+const buildUserManagement = (users, liveUserIds) => {
+  const normalizedUsers = users
+    .map((user) => ({
+      ...user,
+      isActive: user.isActive !== false,
+      isLive: liveUserIds.has(Number(user.id)),
+      lastSeenLabel: formatLastSeen(user.lastSeenAt || user.createdAt),
+      walletBalance: Number(user.walletBalance || 0)
+    }))
+    .sort((a, b) => {
+      if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      return a.username.localeCompare(b.username);
+    });
+
+  return {
+    users: normalizedUsers,
+    summary: {
+      totalUsers: normalizedUsers.length,
+      activeUsers: normalizedUsers.filter((user) => user.isActive).length,
+      inactiveUsers: normalizedUsers.filter((user) => !user.isActive).length,
+      liveUsers: normalizedUsers.filter((user) => user.isLive).length
+    }
+  };
+};
+
+const buildDashboardPayload = async (liveUserIds = new Set()) => {
+  const [orders, items, users] = await Promise.all([storage.getOrders(), storage.getItems(), storage.getUsers()]);
 
   const activeOrders = sortByPickupTime(
     orders.filter((order) => ACTIVE_QUEUE_STATUSES.includes(order.status))
@@ -102,11 +134,13 @@ const buildDashboardPayload = async () => {
     if (a.category === b.category) return a.name.localeCompare(b.name);
     return a.category.localeCompare(b.category);
   });
+  const userManagement = buildUserManagement(users, liveUserIds);
 
   return {
     activeOrders,
     recentOrders,
     menuItems,
+    userManagement,
     analytics: buildAnalytics(orders, items),
     stats: {
       activeOrders: activeOrders.length,
@@ -119,7 +153,7 @@ const buildDashboardPayload = async () => {
 
 exports.getDashboard = async (req, res) => {
   try {
-    const payload = await buildDashboardPayload();
+    const payload = await buildDashboardPayload(new Set(req.app.locals.liveUserSockets?.keys() || []));
     res.render('admin-dashboard', {
       ...payload,
       user: res.locals.user,
@@ -135,11 +169,54 @@ exports.getDashboard = async (req, res) => {
 
 exports.getDashboardData = async (req, res) => {
   try {
-    const payload = await buildDashboardPayload();
+    const payload = await buildDashboardPayload(new Set(req.app.locals.liveUserSockets?.keys() || []));
     res.json(payload);
   } catch (error) {
     console.error('Error loading admin dashboard data:', error);
     res.status(500).json({ error: 'Error loading dashboard data' });
+  }
+};
+
+exports.toggleUserStatus = async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const targetUser = await storage.findUserById(userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (targetUser.role === 'admin') {
+      return res.status(400).json({ error: 'Admin accounts cannot be deactivated here' });
+    }
+
+    const updatedUser = await storage.updateUserById(userId, {
+      isActive: targetUser.isActive === false,
+      lastSeenAt: new Date()
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('userStatusUpdated', { user: updatedUser });
+      io.to(`user-${userId}`).emit('broadcast', {
+        title: updatedUser.isActive ? 'Account Reactivated' : 'Account Deactivated',
+        message: updatedUser.isActive
+          ? 'Your Kundu Cafe account has been reactivated.'
+          : 'Your Kundu Cafe account has been deactivated by the admin.'
+      });
+    }
+
+    if (updatedUser.isActive === false) {
+      const liveMap = req.app.locals.liveUserSockets;
+      if (liveMap) {
+        liveMap.delete(userId);
+      }
+    }
+
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Error toggling user status:', error);
+    res.status(500).json({ error: 'Could not update user status' });
   }
 };
 

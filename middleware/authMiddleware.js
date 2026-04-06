@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const storage = require('../storage');
 const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 /**
@@ -6,7 +7,7 @@ const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret_key';
  */
 
 // Verify JWT Token
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -15,7 +16,12 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    req.user = decoded;
+    const userRecord = await storage.findUserById(decoded.id);
+    if (!userRecord || userRecord.isActive === false) {
+      res.clearCookie('token');
+      return res.redirect('/auth/login');
+    }
+    req.user = userRecord;
     next();
   } catch (error) {
     console.error('Token verification error:', error);
@@ -25,7 +31,7 @@ const verifyToken = (req, res, next) => {
 };
 
 // Check if user is authenticated
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -34,8 +40,14 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    req.user = decoded;
-    res.locals.user = decoded;
+    const userRecord = await storage.findUserById(decoded.id);
+    if (!userRecord || userRecord.isActive === false) {
+      res.clearCookie('token');
+      return res.redirect('/auth/login');
+    }
+    req.user = userRecord;
+    res.locals.user = userRecord;
+    storage.updateUserById(userRecord.id, { lastSeenAt: new Date() }).catch(() => {});
     next();
   } catch (error) {
     console.error('Token verification error:', error);
@@ -45,7 +57,7 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Check if user is Admin
-const adminMiddleware = (req, res, next) => {
+const adminMiddleware = async (req, res, next) => {
   const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -54,13 +66,20 @@ const adminMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    
-    if (decoded.role !== 'admin') {
+
+    const userRecord = await storage.findUserById(decoded.id);
+    if (!userRecord || userRecord.isActive === false) {
+      res.clearCookie('token');
+      return res.status(401).send('Invalid or deactivated account.');
+    }
+
+    if (userRecord.role !== 'admin') {
       return res.status(403).send('Access denied. Admin privileges required.');
     }
 
-    req.user = decoded;
-    res.locals.user = decoded;
+    req.user = userRecord;
+    res.locals.user = userRecord;
+    storage.updateUserById(userRecord.id, { lastSeenAt: new Date() }).catch(() => {});
     next();
   } catch (error) {
     console.error('Token verification error:', error);
@@ -69,7 +88,7 @@ const adminMiddleware = (req, res, next) => {
 };
 
 // Check if user is Student
-const studentMiddleware = (req, res, next) => {
+const studentMiddleware = async (req, res, next) => {
   const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -78,13 +97,20 @@ const studentMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    
-    if (decoded.role !== 'student') {
+
+    const userRecord = await storage.findUserById(decoded.id);
+    if (!userRecord || userRecord.isActive === false) {
+      res.clearCookie('token');
+      return res.redirect('/auth/login');
+    }
+
+    if (userRecord.role !== 'student') {
       return res.status(403).send('Access denied. Student access required.');
     }
 
-    req.user = decoded;
-    res.locals.user = decoded;
+    req.user = userRecord;
+    res.locals.user = userRecord;
+    storage.updateUserById(userRecord.id, { lastSeenAt: new Date() }).catch(() => {});
     next();
   } catch (error) {
     console.error('Token verification error:', error);

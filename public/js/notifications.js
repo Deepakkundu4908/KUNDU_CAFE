@@ -19,12 +19,11 @@ class Notifications {
       Notification.requestPermission();
     }
 
-    // Join room
     if (this.userId) {
-      this.socket.emit('joinRoom', {
-        room: this.isAdmin ? 'admin-room' : `user-${this.userId}`
-      });
-    } else if (this.isAdmin) {
+      this.socket.emit('joinRoom', { room: `user-${this.userId}` });
+    }
+
+    if (this.isAdmin) {
       this.socket.emit('joinRoom', { room: 'admin-room' });
     }
 

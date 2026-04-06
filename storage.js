@@ -58,6 +58,8 @@ const ensureAdminUser = async () => {
       password: hashedPassword,
       role: 'admin',
       walletBalance: 0,
+      isActive: true,
+      lastSeenAt: null,
       isEmailVerified: true
     });
     console.log('Default admin user created.');
@@ -77,6 +79,9 @@ const ensureAdminUser = async () => {
   }
   if (adminUser.role !== 'admin') {
     updates.role = 'admin';
+  }
+  if (adminUser.isActive === false) {
+    updates.isActive = true;
   }
   if (adminUser.collegeEmail !== null) {
     updates.collegeEmail = null;

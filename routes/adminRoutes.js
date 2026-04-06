@@ -9,6 +9,7 @@ router.use(adminMiddleware);
 router.get('/', adminController.getDashboard);
 router.get('/data', adminController.getDashboardData);
 router.post('/broadcast', adminController.broadcastMessage);
+router.post('/users/:id/toggle-status', adminController.toggleUserStatus);
 router.post('/orders/:id/status', adminController.updateOrderStatus);
 router.post('/items/:id/stock-toggle', adminController.toggleStock);
 router.post('/items', upload.single('imageFile'), adminController.createMenuItem);

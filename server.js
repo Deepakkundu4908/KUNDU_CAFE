@@ -15,6 +15,7 @@ dotenv.config();
 const storage = require('./storage');
 
 const app = express();
+app.locals.liveUserSockets = new Map();
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -31,13 +32,20 @@ app.use(session({
 }));
 
 // JWT Token verification middleware
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const token = req.cookies.token;
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key');
-      res.locals.user = decoded;
-      req.user = decoded;
+      const userRecord = await storage.findUserById(decoded.id);
+      if (!userRecord || userRecord.isActive === false) {
+        res.clearCookie('token');
+        res.locals.user = null;
+        req.user = null;
+        return next();
+      }
+      res.locals.user = userRecord;
+      req.user = userRecord;
     } catch (error) {
       res.clearCookie('token');
       res.locals.user = null;
@@ -91,9 +99,33 @@ async function startServer(port) {
     console.log('Client connected:', socket.id);
     socket.on('joinRoom', ({ room }) => {
       socket.join(room);
+      if (room && room.startsWith('user-')) {
+        const userId = Number(room.replace('user-', ''));
+        if (!Number.isNaN(userId)) {
+          socket.data.userId = userId;
+          const liveMap = app.locals.liveUserSockets;
+          liveMap.set(userId, (liveMap.get(userId) || 0) + 1);
+          io.to('admin-room').emit('userPresenceUpdated', {
+            liveUsers: [...liveMap.keys()]
+          });
+        }
+      }
       console.log(`Socket ${socket.id} joined ${room}`);
     });
     socket.on('disconnect', () => {
+      const userId = socket.data.userId;
+      if (typeof userId === 'number') {
+        const liveMap = app.locals.liveUserSockets;
+        const currentCount = liveMap.get(userId) || 0;
+        if (currentCount <= 1) {
+          liveMap.delete(userId);
+        } else {
+          liveMap.set(userId, currentCount - 1);
+        }
+        io.to('admin-room').emit('userPresenceUpdated', {
+          liveUsers: [...liveMap.keys()]
+        });
+      }
       console.log('Client disconnected:', socket.id);
     });
   });
