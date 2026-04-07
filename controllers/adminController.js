@@ -307,9 +307,16 @@ exports.toggleStock = async (req, res) => {
 exports.createMenuItem = async (req, res) => {
   try {
     const { name, category, subcategory, price, dietary, description, quantity, prepTime } = req.body;
+    const parsedPrice = Number(price);
+    const parsedQuantity = Math.max(0, Number(quantity) || 0);
+    const parsedPrepTime = Math.max(1, Number(prepTime) || 5);
 
     if (!name || !category || !price) {
       return res.redirect('/admin?error=Please provide name, category, and price');
+    }
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      return res.redirect('/admin?error=Please provide a valid price');
     }
 
     const nextId = await storage.getNextNumericId(Item);
@@ -318,14 +325,14 @@ exports.createMenuItem = async (req, res) => {
       name: name.trim(),
       category: category.trim(),
       subcategory: (subcategory || '').trim(),
-      price: Number(price),
+      price: parsedPrice,
       dietary: dietary || 'Veg',
       description: (description || '').trim(),
       image: resolveImagePath(req),
-      quantity: Math.max(0, Number(quantity) || 0),
-      prepTime: Math.max(1, Number(prepTime) || 5),
+      quantity: parsedQuantity,
+      prepTime: parsedPrepTime,
       popularity: 0,
-      isOutOfStock: Number(quantity) <= 0
+      isOutOfStock: parsedQuantity <= 0
     });
 
     const io = req.app.get('io');
@@ -351,17 +358,25 @@ exports.updateMenuItem = async (req, res) => {
       return res.redirect('/admin?error=Menu item not found');
     }
 
+    const parsedPrice = Number(price);
+    const parsedQuantity = Math.max(0, Number(quantity) || 0);
+    const parsedPrepTime = Math.max(1, Number(prepTime) || existing.prepTime || 5);
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      return res.redirect('/admin?error=Please provide a valid price');
+    }
+
     const updated = await storage.updateItemById(itemId, {
       name: (name || existing.name).trim(),
       category: (category || existing.category).trim(),
       subcategory: (subcategory || '').trim(),
-      price: Number(price),
+      price: parsedPrice,
       dietary: dietary || existing.dietary,
       description: (description || '').trim(),
       image: resolveImagePath(req, existing.image),
-      quantity: Math.max(0, Number(quantity) || 0),
-      prepTime: Math.max(1, Number(prepTime) || existing.prepTime || 5),
-      isOutOfStock: Number(quantity) <= 0 ? true : existing.isOutOfStock
+      quantity: parsedQuantity,
+      prepTime: parsedPrepTime,
+      isOutOfStock: parsedQuantity <= 0
     });
 
     const io = req.app.get('io');

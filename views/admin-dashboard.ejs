@@ -321,7 +321,7 @@
             <div class="form-group">
               <label for="new-imageFile">Upload Product Image</label>
               <input id="new-imageFile" name="imageFile" type="file" accept="image/*">
-              <small class="admin-field-help">Uploads are stored in `public/images`.</small>
+              <small class="admin-field-help">Uploads are stored in `public/images`, and the saved `/images/...` path is attached to the MongoDB item record.</small>
             </div>
             <div class="form-group form-group-full">
               <label for="new-description">Description</label>
@@ -405,7 +405,7 @@
                   <div class="form-group">
                     <label>Upload New Image</label>
                     <input name="imageFile" type="file" accept="image/*">
-                    <small class="admin-field-help">Choose a file to replace the current product image.</small>
+                    <small class="admin-field-help">Choose a file to replace the current product image and update the MongoDB image path.</small>
                   </div>
                   <div class="form-group form-group-full">
                     <label>Description</label>

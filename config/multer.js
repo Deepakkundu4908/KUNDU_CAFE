@@ -2,45 +2,53 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure images directory exists
-const uploadsDir = path.join(__dirname, '../public/images');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const IMAGE_UPLOADS_DIR = path.join(__dirname, '../public/images');
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    // Create a unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, name + '-' + uniqueSuffix + ext);
-  }
-});
-
-// File filter to accept only images
-const fileFilter = (req, file, cb) => {
-  // Allowed image types
-  const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  
-  if (allowedMimes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only image files are allowed (jpeg, png, gif, webp)'), false);
+const ensureImageDirectory = () => {
+  if (!fs.existsSync(IMAGE_UPLOADS_DIR)) {
+    fs.mkdirSync(IMAGE_UPLOADS_DIR, { recursive: true });
   }
 };
 
-// Create multer upload instance
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+ensureImageDirectory();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    ensureImageDirectory();
+    cb(null, IMAGE_UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = path.extname(file.originalname).toLowerCase();
+    const baseName = path
+      .basename(file.originalname, ext)
+      .replace(/[^a-zA-Z0-9-_]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'image';
+
+    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
   }
 });
+
+const fileFilter = (req, file, cb) => {
+  if (ALLOWED_IMAGE_MIMES.includes(file.mimetype)) {
+    cb(null, true);
+    return;
+  }
+
+  cb(new Error('Only image files are allowed (jpeg, png, gif, webp)'), false);
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  }
+});
+
+upload.ensureImageDirectory = ensureImageDirectory;
+upload.imageUploadsDir = IMAGE_UPLOADS_DIR;
 
 module.exports = upload;
